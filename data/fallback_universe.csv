@@ -1,0 +1,98 @@
+Ticker,Sector,Nasdaq100
+AAPL,Information Technology,True
+MSFT,Information Technology,True
+NVDA,Information Technology,True
+AMZN,Consumer Discretionary,True
+GOOGL,Communication Services,True
+META,Communication Services,True
+AVGO,Information Technology,True
+TSLA,Consumer Discretionary,True
+NFLX,Communication Services,True
+COST,Consumer Staples,True
+AMD,Information Technology,True
+ADBE,Information Technology,True
+CSCO,Information Technology,True
+QCOM,Information Technology,True
+INTC,Information Technology,True
+MU,Information Technology,False
+ANET,Information Technology,False
+MRVL,Information Technology,False
+LITE,Information Technology,False
+COHR,Information Technology,False
+ORCL,Information Technology,True
+CRM,Information Technology,True
+NOW,Information Technology,True
+PANW,Information Technology,True
+CRWD,Information Technology,True
+ZS,Information Technology,False
+DDOG,Information Technology,False
+UBER,Industrials,False
+MA,Financials,False
+V,Financials,False
+JPM,Financials,False
+BAC,Financials,False
+GS,Financials,False
+MS,Financials,False
+PGR,Financials,False
+HOOD,Financials,False
+SOFI,Financials,False
+LLY,Health Care,False
+UNH,Health Care,False
+ABBV,Health Care,False
+AMGN,Health Care,False
+ISRG,Health Care,False
+TMO,Health Care,False
+IDXX,Health Care,False
+MCK,Health Care,False
+GEV,Industrials,False
+ETN,Industrials,False
+HON,Industrials,False
+CAT,Industrials,False
+DE,Industrials,False
+PH,Industrials,False
+NEE,Utilities,False
+CEG,Utilities,False
+VST,Utilities,False
+XOM,Energy,False
+CVX,Energy,False
+COP,Energy,False
+FCX,Materials,False
+NEM,Materials,False
+MP,Materials,False
+CCJ,Energy,False
+KO,Consumer Staples,False
+PEP,Consumer Staples,False
+WMT,Consumer Staples,False
+KR,Consumer Staples,False
+MCD,Consumer Discretionary,False
+SBUX,Consumer Discretionary,False
+QSR,Consumer Discretionary,False
+CAVA,Consumer Discretionary,False
+CMG,Consumer Discretionary,False
+HD,Consumer Discretionary,False
+LOW,Consumer Discretionary,False
+PHM,Consumer Discretionary,False
+TMUS,Communication Services,False
+T,Communication Services,False
+VZ,Communication Services,False
+RDDT,Communication Services,False
+PLTR,Information Technology,False
+IREN,Information Technology,False
+MSTR,Information Technology,False
+SPGI,Financials,False
+MCO,Financials,False
+ICE,Financials,False
+BKNG,Consumer Discretionary,True
+ABNB,Consumer Discretionary,False
+LIN,Materials,False
+PLD,Real Estate,False
+AMT,Real Estate,False
+EQIX,Real Estate,False
+LMT,Industrials,False
+RTX,Industrials,False
+APH,Information Technology,False
+ACGL,Financials,False
+CDW,Information Technology,False
+USB,Financials,False
+ALL,Financials,False
+HUM,Health Care,False

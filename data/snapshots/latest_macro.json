@@ -1,0 +1,327 @@
+{
+  "Risk_Appetite": 68,
+  "Credit": 64,
+  "Rates": 58,
+  "Liquidity": 50,
+  "Growth": 38,
+  "Inflation_Pressure": 55,
+  "Breadth": 58,
+  "VIX": 14.430000305175781,
+  "Copper_Gold_20d": -0.06254349761924982,
+  "Oil_20d": -0.014526936980497007,
+  "US10Y_20d": -0.005268623631869196,
+  "US10Y_20d_bps": -2.4999618530273438,
+  "Dollar_20d": 0.0003549956994941539,
+  "HYG_IEF_20d": 0.005774954643492203,
+  "Macro_Score": 55,
+  "Macro_Score_20d_Ago": 59,
+  "Macro_Delta_20d": -4,
+  "Risk_Regime": "NEUTRAL",
+  "Economic_Regime": "STAGFLATION RISK",
+  "Momentum": "STABLE",
+  "Slow_Macro_Score": null,
+  "Slow_Growth": null,
+  "Slow_Inflation_Pressure": null,
+  "Slow_Policy": null,
+  "Economic_Regime_Slow": "N/A",
+  "Data_Quality_%": 0,
+  "Core_CPI_YoY": null,
+  "Core_PCE_YoY": null,
+  "CPI_YoY": null,
+  "PCE_YoY": null,
+  "Industrial_Production_YoY": null,
+  "Manufacturing_Production_YoY": null,
+  "Retail_Sales_YoY": null,
+  "Housing_Starts_YoY": null,
+  "Unemployment": null,
+  "Unemployment_3m_Change": null,
+  "Payroll_3m_Avg_Change": null,
+  "Fed_Funds": null,
+  "Fed_Funds_6m_Change": null,
+  "10Y_2Y": null,
+  "10Y_Breakeven": null,
+  "NFCI": null,
+  "ISM_PMI": null,
+  "Missing": [
+    "CPI",
+    "Core CPI",
+    "Headline PCE",
+    "Core PCE",
+    "Fed Funds",
+    "Unemployment",
+    "Payrolls",
+    "Industrial Production",
+    "Manufacturing Production",
+    "Retail Sales",
+    "Housing Starts",
+    "10Y-2Y",
+    "10Y Breakeven",
+    "Financial Conditions"
+  ],
+  "Series_Meta": {
+    "CPI": {
+      "series_id": "CPIAUCSL",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=CPIAUCSL (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Core CPI": {
+      "series_id": "CPILFESL",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=CPILFESL (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Headline PCE": {
+      "series_id": "PCEPI",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=PCEPI (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Core PCE": {
+      "series_id": "PCEPILFE",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=PCEPILFE (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Fed Funds": {
+      "series_id": "FEDFUNDS",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=FEDFUNDS (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Unemployment": {
+      "series_id": "UNRATE",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=UNRATE (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Payrolls": {
+      "series_id": "PAYEMS",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=PAYEMS (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Industrial Production": {
+      "series_id": "INDPRO",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=INDPRO (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Manufacturing Production": {
+      "series_id": "IPMAN",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=IPMAN (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Retail Sales": {
+      "series_id": "RSAFS",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=RSAFS (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Housing Starts": {
+      "series_id": "HOUST",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=HOUST (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "10Y-2Y": {
+      "series_id": "T10Y2Y",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=T10Y2Y (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "10Y Breakeven": {
+      "series_id": "T10YIE",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=T10YIE (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    },
+    "Financial Conditions": {
+      "series_id": "NFCI",
+      "source": "Unavailable",
+      "status": "MISSING",
+      "latest_date": null,
+      "error": "FRED CSV: HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Max retries exceeded with url: /graph/fredgraph.csv?id=NFCI (Caused by ReadTimeoutError(\"HTTPSConnectionPool(host='fred.stlouisfed.org', port=443): Read timed out. (read timeout=25)\"))"
+    }
+  },
+  "Slow_Table": [
+    {
+      "Indicator": "Core CPI YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Core PCE YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Headline CPI YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Headline PCE YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Industrial Production YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Manufacturing Production YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Retail Sales YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Housing Starts YoY",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Unemployment",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Unemployment 3m change",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "pp",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Payroll 3m avg change",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "thousands",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Fed Funds",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "Fed Funds 6m change",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "pp",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "10Y-2Y",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "pp",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "10Y Breakeven",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "%",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    },
+    {
+      "Indicator": "NFCI",
+      "Value": null,
+      "Previous": null,
+      "Trend": "",
+      "Unit": "index",
+      "Source": "Unavailable",
+      "Status": "MISSING",
+      "Updated": null
+    }
+  ],
+  "FRED_Key_Configured": false,
+  "Fast_Macro_Score": 55,
+  "Slow_Layer_Used": false,
+  "Institutional_Regime": "NEUTRAL"
+}

@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+*.key
+.DS_Store
+.streamlit/secrets.toml
+data/cache/
+data/market_screener.duckdb
+data/logs/
+data/audit/*.jsonl
+.pytest_cache/
+.coverage
+htmlcov/

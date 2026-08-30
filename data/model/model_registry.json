@@ -1,0 +1,37 @@
+{
+  "models": [
+    {
+      "name": "Opportunity Model",
+      "version": "6.0.0",
+      "effective_date": "2026-08-24",
+      "weights": {
+        "quality": 0.17,
+        "trend": 0.18,
+        "entry": 0.22,
+        "relative_strength": 0.1,
+        "sector": 0.08,
+        "macro": 0.08,
+        "revisions": 0.08,
+        "valuation": 0.05,
+        "confidence": 0.04
+      },
+      "notes": "V6 adds edge calibration, factors, options/crowding, stress tests, journal and audit trail."
+    },
+    {
+      "name": "Opportunity Model",
+      "version": "8.0.0",
+      "effective_date": "2026-08-24",
+      "weights": {
+        "quality": 0.18,
+        "trend": 0.16,
+        "entry": 0.22,
+        "relative_strength": 0.12,
+        "sector": 0.08,
+        "macro": 0.08,
+        "revisions": 0.1,
+        "valuation": 0.06
+      },
+      "notes": "V8 production hardening: missing-aware factor reweighting, confidence separated from alpha, coverage gating and event/RR penalties."
+    }
+  ]
+}

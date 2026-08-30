@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-08-29T04:10:49.350578+00:00",
+  "scan_limit": 220,
+  "symbols_requested": 540,
+  "symbols_downloaded": 540,
+  "symbols_scored": 219,
+  "symbol_failures": 1,
+  "failure_examples": [
+    [
+      "FDXF",
+      "INSUFFICIENT_HISTORY"
+    ]
+  ]
+}

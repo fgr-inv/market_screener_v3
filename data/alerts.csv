@@ -1,0 +1,1 @@
+id,user_id,created_at,ticker,rule_type,threshold,enabled,note,cooldown_minutes,repeat_while_true
