@@ -43,7 +43,6 @@ portfolio=[
     st.Page('views/broker_data.py',title='Broker Import',icon='🏦'),
 ]
 quant=[
-    st.Page('views/factor_lab.py',title='Factor Lab',icon='🧬'),
     st.Page('views/model_validation.py',title='Model Validation',icon='🧪'),
     st.Page('views/backtesting.py',title='Backtesting Lab',icon='🧫'),
 ]
