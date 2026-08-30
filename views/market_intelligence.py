@@ -24,7 +24,7 @@ c5.metric('VIX',f"{state['VIX']:.1f}" if pd.notna(state['VIX']) else 'N/D')
 st.caption(f"Macro regime: {state['Macro_Regime']} · Scores 0–100. Son clasificaciones probabilísticas, no predicciones.")
 
 st.subheader('🧭 Sector Rotation & Opportunity')
-section_note('Opportunity repondera solo evidencia disponible: strength, entry, macro, revisiones y valoración relativa. No inventa 50/100 cuando falta un factor.')
+section_note('Opportunity repondera solo evidencia disponible. Revisions/Valuation usan el último deep screener; si falta, V11.18 intenta un proxy live de holdings representativos. Nunca inventa 50/100 por ausencia.')
 st.dataframe(sectors,use_container_width=True,hide_index=True)
 
 st.subheader('🌊 Market Breadth & Concentration')
@@ -55,7 +55,7 @@ if sectors.empty or ('Revisions' not in sectors and 'Relative Valuation' not in 
 else:
     cols=[c for c in ['Sector','ETF','Revisions','Relative Valuation','Opportunity'] if c in sectors]
     st.dataframe(sectors[cols],use_container_width=True,hide_index=True)
-st.caption('Valuation aquí es relativa al universo/sector disponible en el último snapshot. No se etiqueta como percentil histórico si no existe historia suficiente.')
+st.caption('Fuente prioritaria: último Fundamental/Combined Screener. Fallback V11.18: revisiones de holdings representativos y valoración por percentil cross-sector del Forward P/E mediano. No es percentil histórico; para REITs, P/FFO sigue siendo la métrica preferida en análisis individual.')
 
 st.subheader('💧 Liquidity / Financial Conditions')
 liq=pd.DataFrame([['Liquidity composite',state['Liquidity_Score']],['Credit conditions',state['Credit_Score']],['Volatility conditions',state['Volatility_Score']],['Trend',state['Trend_Score']]],columns=['Driver','Score'])

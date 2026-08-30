@@ -1,5 +1,6 @@
 from __future__ import annotations
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -12,6 +13,24 @@ from core.macro_regime_engine import macro_regime
 from core.utils import clamp
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Small representative baskets keep the live fundamental overlay useful without
+# turning Market Intelligence into a 500-symbol fundamental scan.  They are a
+# transparent proxy only; the full Fundamental/Combined screener remains the
+# authoritative constituent-level research workflow.
+SECTOR_REPRESENTATIVES = {
+    'Technology': ['MSFT','NVDA','AAPL','AVGO','ORCL'],
+    'Financials': ['BRK-B','JPM','V','MA','BAC'],
+    'Health Care': ['LLY','JNJ','ABBV','UNH','ISRG'],
+    'Industrials': ['GE','CAT','RTX','UBER','HON'],
+    'Utilities': ['NEE','SO','DUK','CEG','AEP'],
+    'Energy': ['XOM','CVX','COP','SLB','EOG'],
+    'Materials': ['LIN','SHW','FCX','NEM','APD'],
+    'Real Estate': ['WELL','PLD','EQIX','AMT','DLR'],
+    'Consumer Discretionary': ['AMZN','TSLA','HD','MCD','BKNG'],
+    'Consumer Staples': ['WMT','COST','KO','PG','PM'],
+    'Communication Services': ['META','GOOGL','NFLX','TMUS','DIS'],
+}
 
 
 def _num(x, default=np.nan):
@@ -41,7 +60,9 @@ def _trend_score(raw):
 def market_state(pm:dict, macro:dict|None=None):
     macro=macro or {}; spy=pm.get('SPY'); qqq=pm.get('QQQ'); rsp=pm.get('RSP'); iwm=pm.get('IWM')
     vix=pm.get('^VIX'); hyg=pm.get('HYG'); ief=pm.get('IEF')
-    trend=np.nanmean([_trend_score(x) for x in [spy,qqq] if x is not None])
+    trend_vals=[_trend_score(x) for x in [spy,qqq] if x is not None]
+    trend_vals=[x for x in trend_vals if pd.notna(x)]
+    trend=float(np.mean(trend_vals)) if trend_vals else np.nan
     breadth=[]
     for raw in [spy,qqq,rsp,iwm]:
         s=_trend_score(raw)
@@ -69,7 +90,6 @@ def breadth_dashboard(pm:dict):
     for name,sym in [('S&P 500','SPY'),('Nasdaq 100','QQQ'),('Equal Weight','RSP'),('Small Caps','IWM')]:
         raw=pm.get(sym)
         rows.append({'Market':name,'Ticker':sym,'Trend Score':_trend_score(raw),'1M %':round(_ret(raw,21),2),'3M %':round(_ret(raw,63),2),'6M %':round(_ret(raw,126),2)})
-    # Relative breadth/concentration proxies are intentionally transparent, not mislabeled as constituent breadth.
     def rel(a,b,n=63):
         ra,rb=pm.get(a),pm.get(b)
         aa,bb=_ret(ra,n),_ret(rb,n)
@@ -77,25 +97,148 @@ def breadth_dashboard(pm:dict):
     return pd.DataFrame(rows), {'RSP_vs_SPY_3M_pp':rel('RSP','SPY'),'IWM_vs_SPY_3M_pp':rel('IWM','SPY'),'QQQ_vs_SPY_3M_pp':rel('QQQ','SPY')}
 
 
-def sector_rotation_table(pm:dict, macro:dict|None=None, screener:pd.DataFrame|None=None):
+def _snapshot_sector_evidence(screener:pd.DataFrame|None):
+    """Aggregate genuine sector evidence already produced by a deep scan.
+
+    Technical-only snapshots often contain no fundamental fields.  We never
+    convert that absence into a neutral 50.  Revision rows marked N/D are also
+    excluded because older screener paths may use 50 as an availability fallback.
+    """
+    out={}
+    if not isinstance(screener,pd.DataFrame) or screener.empty or 'Sector' not in screener:
+        return out
+    for sector,g in screener.groupby(screener['Sector'].astype(str)):
+        rec={'revision':np.nan,'valuation':np.nan,'revision_n':0,'valuation_n':0}
+        rev_col=next((c for c in ['EPS_Revision_Score','Revision_Score'] if c in g.columns),None)
+        if rev_col:
+            rv=pd.to_numeric(g[rev_col],errors='coerce')
+            if 'Revision_Direction' in g.columns:
+                direction=g['Revision_Direction'].astype(str).str.upper()
+                rv=rv.where(~direction.isin(['N/D','ND','NONE','NAN','']))
+            rv=rv.dropna()
+            if len(rv):
+                rec['revision']=float(rv.median()); rec['revision_n']=int(len(rv))
+        val_col=next((c for c in ['Valuation_Score','PE_Sector_Percentile'] if c in g.columns),None)
+        if val_col:
+            vv=pd.to_numeric(g[val_col],errors='coerce').dropna()
+            if len(vv):
+                rec['valuation']=float(vv.median()); rec['valuation_n']=int(len(vv))
+        out[sector]=rec
+    return out
+
+
+def _live_representative_evidence():
+    """Fetch a bounded, cached representative-company overlay.
+
+    Revisions require actual analyst/revision evidence.  Valuation uses forward
+    P/E where available and is converted into an *across-sector* percentile only
+    after sector medians are calculated.  It is deliberately not labelled as a
+    historical percentile.
+    """
+    try:
+        from core.analyst_data import get_analyst_snapshot
+        from core.fundamentals import get_market_valuation_snapshot
+    except Exception:
+        return {}
+
+    jobs=[(sector,t) for sector,tickers in SECTOR_REPRESENTATIVES.items() for t in tickers]
+    raw={sector:[] for sector in SECTOR_REPRESENTATIVES}
+
+    def fetch(item):
+        sector,ticker=item
+        a={}; v={}
+        try: a=get_analyst_snapshot(ticker) or {}
+        except Exception: pass
+        try: v=get_market_valuation_snapshot(ticker) or {}
+        except Exception: pass
+        detail=a.get('Revision_Detail')
+        has_detail=isinstance(detail,pd.DataFrame) and not detail.empty
+        has_revision_evidence=(has_detail or pd.notna(_num(a.get('Revision_Velocity_%'))) or pd.notna(_num(a.get('Analyst_Count'))))
+        rev=_num(a.get('EPS_Revision_Score')) if has_revision_evidence else np.nan
+        pe=_num(v.get('Forward_PE'))
+        if pd.notna(pe) and pe<=0: pe=np.nan
+        return sector,ticker,rev,pe
+
+    # Provider calls are cached at their own TTLs; bounded parallelism avoids a
+    # 55-request serial page load while remaining conservative with free sources.
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futs=[ex.submit(fetch,j) for j in jobs]
+        for fut in as_completed(futs):
+            try:
+                sector,ticker,rev,pe=fut.result()
+                raw[sector].append((ticker,rev,pe))
+            except Exception:
+                continue
+
+    sector_pe={}
+    out={}
+    for sector,items in raw.items():
+        revs=[r for _,r,_ in items if pd.notna(r)]
+        pes=[p for _,_,p in items if pd.notna(p)]
+        med_pe=float(np.median(pes)) if pes else np.nan
+        sector_pe[sector]=med_pe
+        out[sector]={
+            'revision':float(np.median(revs)) if revs else np.nan,
+            'revision_n':len(revs),
+            'forward_pe_median':med_pe,
+            'valuation_n':len(pes),
+        }
+
+    valid={k:v for k,v in sector_pe.items() if pd.notna(v)}
+    if valid:
+        s=pd.Series(valid,dtype=float)
+        # Lower forward P/E => higher valuation-attractiveness score.
+        pct=(1.0-s.rank(method='average',pct=True)+1.0/len(s))*100
+        pct=pct.clip(0,100)
+        for sector,val in pct.items(): out[sector]['valuation']=float(round(val,1))
+    return out
+
+
+def sector_fundamental_overlay(screener:pd.DataFrame|None=None, live_fallback=True):
+    snap=_snapshot_sector_evidence(screener)
+    need_live=live_fallback and any(
+        pd.isna(_num(snap.get(s,{}).get('revision'))) or pd.isna(_num(snap.get(s,{}).get('valuation')))
+        for s in SECTOR_ETFS
+    )
+    live=_live_representative_evidence() if need_live else {}
+    out={}
+    for sector in SECTOR_ETFS:
+        ss=snap.get(sector,{}) ; ll=live.get(sector,{})
+        sr=_num(ss.get('revision')); sv=_num(ss.get('valuation'))
+        lr=_num(ll.get('revision')); lv=_num(ll.get('valuation'))
+        rev=sr if pd.notna(sr) else lr
+        val=sv if pd.notna(sv) else lv
+        out[sector]={
+            'revision':rev,'valuation':val,
+            'revision_source':'DEEP SCREENER' if pd.notna(sr) else ('TOP HOLDINGS PROXY' if pd.notna(lr) else 'N/D'),
+            'valuation_source':'DEEP SCREENER' if pd.notna(sv) else ('FWD P/E CROSS-SECTOR PROXY' if pd.notna(lv) else 'N/D'),
+            'revision_n':int(ss.get('revision_n',0) or 0) if pd.notna(sr) else int(ll.get('revision_n',0) or 0),
+            'valuation_n':int(ss.get('valuation_n',0) or 0) if pd.notna(sv) else int(ll.get('valuation_n',0) or 0),
+            'forward_pe_median':_num(ll.get('forward_pe_median')),
+        }
+    return out
+
+
+def sector_rotation_table(pm:dict, macro:dict|None=None, screener:pd.DataFrame|None=None, live_fundamentals=True):
     macro=macro or {}; spy=pm.get('SPY'); rows=[]
+    overlay=sector_fundamental_overlay(screener,live_fallback=live_fundamentals)
     for sector,etf in SECTOR_ETFS.items():
         raw=pm.get(etf)
         if raw is None or raw.empty: continue
         try:
             r=analyze_symbol(etf,enrich_indicators(raw),spy,sector); strength,entry,status=sector_strength_entry(r); mf=sector_macro_score(sector,macro)
-            rev=val=np.nan
-            if isinstance(screener,pd.DataFrame) and not screener.empty and 'Sector' in screener:
-                g=screener[screener['Sector'].astype(str)==sector]
-                for c in ['EPS_Revision_Score','Revision_Score']:
-                    if c in g: rev=pd.to_numeric(g[c],errors='coerce').median(); break
-                for c in ['Valuation_Score','PE_Sector_Percentile']:
-                    if c in g: val=pd.to_numeric(g[c],errors='coerce').median(); break
+            ev=overlay.get(sector,{})
+            rev=_num(ev.get('revision')); val=_num(ev.get('valuation'))
             components=[(.30,strength),(.20,entry),(.20,mf),(.15,rev),(.15,val)]
             avail=[(w,_num(v)) for w,v in components if pd.notna(_num(v))]
             overall=round(sum(w*v for w,v in avail)/sum(w for w,_ in avail)) if avail else np.nan
             rows.append({'Sector':sector,'ETF':etf,'Opportunity':overall,'Strength':strength,'Entry':entry,'Macro Fit':mf,
-                         'Revisions':rev,'Relative Valuation':val,'1M %':round(_ret(raw,21),2),'3M %':round(_ret(raw,63),2),
+                         'Revisions':round(rev,1) if pd.notna(rev) else np.nan,
+                         'Relative Valuation':round(val,1) if pd.notna(val) else np.nan,
+                         'Revision Coverage':ev.get('revision_n',0),'Valuation Coverage':ev.get('valuation_n',0),
+                         'Revisions Source':ev.get('revision_source','N/D'),'Valuation Source':ev.get('valuation_source','N/D'),
+                         'Median Forward P/E':round(_num(ev.get('forward_pe_median')),2) if pd.notna(_num(ev.get('forward_pe_median'))) else np.nan,
+                         '1M %':round(_ret(raw,21),2),'3M %':round(_ret(raw,63),2),
                          '6M %':round(_ret(raw,126),2),'RS vs SPY 3M pp':round(_ret(raw,63)-_ret(spy,63),2),'Status':status})
         except Exception: continue
     return pd.DataFrame(rows).sort_values(['Opportunity','Strength'],ascending=False,na_position='last') if rows else pd.DataFrame()
@@ -112,7 +255,6 @@ def cross_asset_table(pm:dict):
 
 
 def macro_sensitivity_table():
-    # Directional structural sensitivities, not forecasts. +2 strong beneficiary, -2 strong headwind.
     data={
       'Technology':(1,-1,-1,1,1),'Financials':(0,0,1,1,1),'Health Care':(1,0,0,0,0),'Industrials':(1,-1,0,1,1),
       'Utilities':(2,0,-1,0,0),'Energy':(0,2,1,1,1),'Materials':(1,1,-1,1,1),'Real Estate':(2,0,-1,1,-1),

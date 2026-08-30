@@ -3,8 +3,24 @@ import numpy as np
 import pandas as pd
 from core.utils import clamp
 
+def _first_number(m, *keys):
+    for key in keys:
+        v=m.get(key,np.nan)
+        try:
+            x=float(v)
+            if np.isfinite(x): return x
+        except Exception:
+            pass
+    return np.nan
+
 def macro_regime(m:dict):
-    m=m or {}; g=m.get('Slow_Growth',m.get('Growth',np.nan)); inf=m.get('Slow_Inflation_Pressure',m.get('Inflation_Pressure',np.nan)); liq=m.get('Liquidity',np.nan); credit=m.get('Credit',np.nan); risk=m.get('Risk_Appetite',np.nan); rates=m.get('Rates',np.nan)
+    m=m or {}
+    # A key present with value None must not block the faster market-based fallback.
+    # This was the source of Market Intelligence showing UNKNOWN even when Growth
+    # and Inflation_Pressure were already available.
+    g=_first_number(m,'Slow_Growth','Growth')
+    inf=_first_number(m,'Slow_Inflation_Pressure','Inflation_Pressure')
+    liq=_first_number(m,'Liquidity'); credit=_first_number(m,'Credit'); risk=_first_number(m,'Risk_Appetite'); rates=_first_number(m,'Rates')
     if pd.notna(g) and pd.notna(inf):
         regime='GOLDILOCKS' if g>=50 and inf<55 else 'REFLATION' if g>=50 and inf>=55 else 'STAGFLATION' if g<50 and inf>=55 else 'SLOWDOWN / DISINFLATION'
     else: regime='UNKNOWN'
