@@ -1,14 +1,15 @@
 import pandas as pd
 import streamlit as st
+from core.access_control import current_user
 
 from core.storage import load_positions,upsert_position,delete_position
 from core.market_data import download_prices
 from core.portfolio_risk import portfolio_risk,high_correlation_pairs
 from core.themes import theme_exposure
 from core.ui import hero, section_note
-from core.github_sync import push_file
 
 hero('Portfolio Risk','Peso, contribución al riesgo, concentración temática, correlaciones, beta, VaR y drawdown.','Risk Workstation V8')
+user=current_user(); uid=user['user_id']
 
 with st.sidebar:
     st.header('Agregar / editar posición')
@@ -17,11 +18,10 @@ with st.sidebar:
     c=st.number_input('Costo promedio',min_value=0.0,value=100.0,step=1.0)
     sec=st.text_input('Sector','Technology')
     if st.button('Guardar posición',type='primary',use_container_width=True):
-        upsert_position(t,q,c,sec)
-        push_file('data/portfolio_positions.csv','data/portfolio_positions.csv','chore: update portfolio positions')
+        upsert_position(t,q,c,sec,user_id=uid)
         st.rerun()
 
-pos=load_positions()
+pos=load_positions(user_id=uid)
 if pos.empty:
     st.info('Agregá posiciones desde la barra lateral.'); st.stop()
 
@@ -53,7 +53,7 @@ with t4:
     st.dataframe(pos,use_container_width=True,hide_index=True)
     kill=st.selectbox('Ticker a eliminar',['—']+tickers)
     if kill!='—' and st.button('Eliminar'):
-        delete_position(kill); push_file('data/portfolio_positions.csv','data/portfolio_positions.csv','chore: update portfolio positions'); st.rerun()
+        delete_position(kill,user_id=uid); st.rerun()
 
 st.subheader('Risk Diagnostics')
 flags=[]

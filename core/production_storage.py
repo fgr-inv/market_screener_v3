@@ -91,6 +91,65 @@ def ensure_production_schema():
                 status TEXT,
                 note TEXT
             )''',
+            '''CREATE TABLE IF NOT EXISTS user_portfolio_positions (
+                user_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                quantity DOUBLE PRECISION,
+                avg_cost DOUBLE PRECISION,
+                sector TEXT,
+                note TEXT,
+                updated_at TIMESTAMP,
+                PRIMARY KEY (user_id, ticker)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_portfolio_positions_user
+               ON user_portfolio_positions(user_id)''',
+            '''CREATE TABLE IF NOT EXISTS user_investment_theses (
+                user_id TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                created_at TIMESTAMP,
+                updated_at TIMESTAMP,
+                thesis TEXT,
+                catalysts TEXT,
+                invalidation TEXT,
+                target TEXT,
+                review_date TEXT,
+                status TEXT,
+                note TEXT,
+                PRIMARY KEY (user_id, ticker)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_investment_theses_user
+               ON user_investment_theses(user_id)''',
+            '''CREATE TABLE IF NOT EXISTS user_trade_journal (
+                user_id TEXT NOT NULL,
+                id BIGINT NOT NULL,
+                opened_at TIMESTAMP,
+                closed_at TIMESTAMP NULL,
+                ticker TEXT,
+                side TEXT,
+                setup TEXT,
+                thesis TEXT,
+                catalyst TEXT,
+                entry DOUBLE PRECISION,
+                stop DOUBLE PRECISION,
+                target DOUBLE PRECISION,
+                exit DOUBLE PRECISION,
+                quantity DOUBLE PRECISION,
+                score_at_entry DOUBLE PRECISION,
+                confidence_at_entry DOUBLE PRECISION,
+                status TEXT,
+                notes TEXT,
+                pnl_dollars DOUBLE PRECISION,
+                pnl_percent DOUBLE PRECISION,
+                PRIMARY KEY (user_id, id)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_trade_journal_user_status
+               ON user_trade_journal(user_id,status,opened_at)''',
+            '''CREATE TABLE IF NOT EXISTS user_notification_settings (
+                user_id TEXT PRIMARY KEY,
+                webhook_url TEXT,
+                enabled BOOLEAN DEFAULT TRUE,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )''',
             '''CREATE TABLE IF NOT EXISTS app_users (
                 user_id TEXT PRIMARY KEY,
                 email TEXT,

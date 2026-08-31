@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import pandas as pd
 import streamlit as st
+from core.access_control import current_user
 
 from core.provider_health import provider_health
 from core.institutional_providers import provider_capabilities
@@ -13,6 +14,10 @@ from core.monitoring import recent_errors
 from core.ui import hero,section_note
 
 hero('System Health','Proveedores, persistencia, snapshots, errores y data integrity.','Observability V8')
+user=current_user()
+if user.get('role')!='OWNER':
+    st.error('🔒 Esta página es solo para OWNER / administración.')
+    st.stop()
 
 c1,c2,c3,c4=st.columns(4)
 c1.metric('Active model',model_label())

@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+from core.access_control import current_user
 from core.storage import load_positions
 from core.market_data import download_prices
 from core.scenario import DEFAULT_SCENARIOS, stress_portfolio
@@ -7,7 +8,8 @@ from core.historical_stress import HISTORICAL_WINDOWS, historical_stress_portfol
 from core.ui import hero
 
 hero('Portfolio Stress Test','Hypothetical shocks + realized historical crisis windows.','Scenario Engine')
-pos=load_positions()
+user=current_user(); uid=user['user_id']
+pos=load_positions(user_id=uid)
 if pos.empty:
     st.info('No hay posiciones guardadas.'); st.stop()
 

@@ -12,7 +12,8 @@ def should_notify(hit, state=None, cooldown_minutes=240, repeat_while_true=False
     if now.tzinfo is None:
         now=now.tz_localize('UTC')
     state=state or {}
-    previous=bool(state.get('last_hit',False))
+    raw_previous=state.get('last_hit',False)
+    previous=False if pd.isna(raw_previous) else bool(raw_previous)
     if not hit:
         return False,'RESET'
     if not previous:

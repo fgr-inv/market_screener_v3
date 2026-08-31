@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from datetime import datetime, timezone
 import sys
 import pandas as pd
@@ -8,13 +9,17 @@ if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 
 from core.storage import list_alerts,get_alert_state,set_alert_state
 from core.market_data import download_prices
-from core.alerts_engine import evaluate_rule,send_webhook
+from core.alerts_engine import evaluate_rule,send_webhook,webhook_status
 from core.alert_state import should_notify
 from core.monitoring import log_event,log_exception
 from core.production_storage import storage_mode
+from core.notification_settings import get_user_webhook
 
 
 def main():
+    if os.getenv('GITHUB_ACTIONS','').lower()=='true' and storage_mode()!='POSTGRES':
+        print('ERROR: DATABASE_URL is required for scheduled alerts in GitHub Actions.')
+        return 2
     alerts=list_alerts(enabled_only=True)
     if alerts.empty:
         print('No enabled alerts'); return 0
@@ -22,8 +27,9 @@ def main():
     symbols=list(dict.fromkeys(ticks+['SPY']))
     print(f'Storage={storage_mode()} | Downloading {len(symbols)} symbols...')
     price_map=download_prices(symbols,period='2y'); spy=price_map.get('SPY')
-    triggered=0; errors=0; evaluated=0
+    attempted=0; delivered_count=0; errors=0; evaluated=0
     now=datetime.now(timezone.utc)
+    print('Notification routing=user-scoped webhook (server secret only falls back for DEV/OWNER user)')
     for _,alert in alerts.iterrows():
         aid=int(alert['id']); ticker=str(alert.get('ticker','UNKNOWN'))
         try:
@@ -37,16 +43,20 @@ def main():
             )
             delivered=False
             if notify:
-                delivered=send_webhook(message)
-                triggered+=1
+                attempted+=1
+                target=get_user_webhook(alert.get('user_id'))
+                delivered=send_webhook(message,url=target) if target else False
+                delivered_count+=int(delivered)
                 print(f'HIT [{reason}] {message} | webhook={delivered}')
             else:
                 print(f'NOOP [{reason}] {ticker} | hit={hit}')
-            set_alert_state(aid,hit,message,triggered=notify,evaluated_at=now)
+            # If delivery fails, keep the edge unarmed so the next scheduled run retries.
+            persisted_hit = bool(hit) if (not notify or delivered) else False
+            set_alert_state(aid,persisted_hit,message,triggered=bool(notify and delivered),evaluated_at=now)
             log_event('alert_evaluated',alert_id=aid,ticker=ticker,hit=bool(hit),notify=bool(notify),reason=reason,webhook=delivered)
         except Exception as exc:
             errors+=1; print(f'ERROR {ticker}: {exc}'); log_exception('alert_evaluation_error',exc,alert_id=aid,ticker=ticker)
-    print(f'Finished. evaluated={evaluated} triggered={triggered} errors={errors}')
+    print(f'Finished. evaluated={evaluated} attempted={attempted} delivered={delivered_count} errors={errors}')
     # A single provider/ticker error should not kill all alerts; systemic failures are visible in logs.
     return 0 if evaluated>0 or errors==0 else 1
 

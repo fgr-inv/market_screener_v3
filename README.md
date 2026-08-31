@@ -410,3 +410,14 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - PRICE_ABOVE / PRICE_BELOW rules use the shared 5-minute live quote cache, with daily-price fallback.
 - Secure user-scoped enable/delete operations.
 - Edge-triggering, cooldown and manual evaluation retained.
+
+## V11.23 — Portfolio + Operations hardening
+- Portfolio positions and investment theses are user-scoped in local DuckDB and Postgres.
+- Trade Journal is user-scoped, Postgres-capable, validates LONG/SHORT risk geometry, and fixes journal statistics.
+- Portfolio overview adds market value, cost basis, unrealized P&L and weights.
+- Broker imports write only to the current user portfolio.
+- Alert Center combines manual signal monitoring with persistent alert status.
+- Saved Alerts condition widgets now rerun correctly, expose notification/storage readiness, and support webhook test messages.
+- Alert runner retries failed deliveries instead of falsely marking them as delivered.
+- GitHub Actions no longer commits private alert state to the repository; production alerts require DATABASE_URL + ALERT_WEBHOOK_URL secrets.
+- System Health and Institutional Data Hub are OWNER-only.

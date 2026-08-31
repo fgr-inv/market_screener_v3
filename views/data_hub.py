@@ -1,12 +1,17 @@
 from pathlib import Path
 import pandas as pd
 import streamlit as st
+from core.access_control import current_user
 from core.ui import hero,section_note
 from core.institutional_providers import provider_capabilities
 from core.point_in_time import premium_data_contracts, point_in_time_status
 from core.production_storage import cloud_available
 
 hero('Institutional Data Hub','Conectores premium, datasets point-in-time y persistencia de producción.','Data Infrastructure')
+user=current_user()
+if user.get('role')!='OWNER':
+    st.error('🔒 Esta página es solo para OWNER / administración.')
+    st.stop()
 
 st.subheader('Provider capabilities')
 st.dataframe(provider_capabilities(),use_container_width=True,hide_index=True)

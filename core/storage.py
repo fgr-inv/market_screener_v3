@@ -337,7 +337,8 @@ def get_alert_state(alert_id):
 def set_alert_state(alert_id, hit, message='', triggered=False, evaluated_at=None):
     aid=int(alert_id); now=pd.Timestamp(evaluated_at or _utcnow_naive()).to_pydatetime(); prev=get_alert_state(aid)
     trig_at=now if triggered else prev.get('last_triggered_at')
-    count=int(prev.get('trigger_count',0) or 0)+(1 if triggered else 0)
+    raw_count=prev.get('trigger_count',0)
+    count=(0 if pd.isna(raw_count) else int(raw_count or 0))+(1 if triggered else 0)
     con=_conn(); con.execute('''INSERT OR REPLACE INTO alert_state VALUES (?,?,?,?,?,?)''',[aid,bool(hit),trig_at,now,message,count]); con.close(); _mirror_alert_state_csv()
     if cloud_available():
         execute_sql('''INSERT INTO alert_state (alert_id,last_hit,last_triggered_at,last_evaluated_at,last_message,trigger_count)
@@ -355,9 +356,75 @@ def list_alert_states():
     import_alert_state_csv_if_needed(); con=_conn(); x=_normalize_alert_state(con.execute('SELECT * FROM alert_state ORDER BY alert_id').df()); con.close(); return x
 
 
+def _ensure_user_portfolio_tables(con):
+    # User-scoped tables avoid cross-account portfolio leakage and preserve legacy tables.
+    con.execute('''
+        CREATE TABLE IF NOT EXISTS user_portfolio_positions (
+            user_id VARCHAR, ticker VARCHAR, quantity DOUBLE, avg_cost DOUBLE,
+            sector VARCHAR, note VARCHAR, updated_at TIMESTAMP,
+            PRIMARY KEY (user_id, ticker)
+        )
+    ''')
+    con.execute('''
+        CREATE TABLE IF NOT EXISTS user_investment_theses (
+            user_id VARCHAR, ticker VARCHAR, created_at TIMESTAMP, updated_at TIMESTAMP,
+            thesis VARCHAR, catalysts VARCHAR, invalidation VARCHAR, target VARCHAR,
+            review_date VARCHAR, status VARCHAR, note VARCHAR,
+            PRIMARY KEY (user_id, ticker)
+        )
+    ''')
+    uid=_default_alert_user_id()
+    try:
+        if con.execute('SELECT COUNT(*) FROM user_portfolio_positions').fetchone()[0]==0:
+            legacy=con.execute('SELECT * FROM portfolio_positions').df()
+            if not legacy.empty:
+                legacy.insert(0,'user_id',uid)
+                con.register('legacy_positions',legacy[['user_id','ticker','quantity','avg_cost','sector','note','updated_at']])
+                con.execute('INSERT OR IGNORE INTO user_portfolio_positions SELECT * FROM legacy_positions')
+    except Exception as exc:
+        log_event('positions_legacy_migration_error',error=str(exc)[:180])
+    try:
+        if con.execute('SELECT COUNT(*) FROM user_investment_theses').fetchone()[0]==0:
+            legacy=con.execute('SELECT * FROM investment_theses').df()
+            if not legacy.empty:
+                legacy.insert(0,'user_id',uid)
+                con.register('legacy_theses',legacy[['user_id']+THESIS_COLUMNS])
+                con.execute('INSERT OR IGNORE INTO user_investment_theses SELECT * FROM legacy_theses')
+    except Exception as exc:
+        log_event('theses_legacy_migration_error',error=str(exc)[:180])
+
+
+def _migrate_cloud_legacy_portfolio_if_needed(user_id):
+    # Preserve pre-V11.23 single-user cloud data by assigning it to the configured user once.
+    if not cloud_available(): return
+    uid=str(user_id or _default_alert_user_id())
+    try:
+        counts=query_sql('SELECT (SELECT COUNT(*) FROM user_portfolio_positions) AS p, (SELECT COUNT(*) FROM user_investment_theses) AS t')
+        if counts.empty: return
+        if int(counts.iloc[0].get('p',0) or 0)==0:
+            old=query_sql('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM portfolio_positions')
+            for _,r in old.iterrows():
+                execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
+                    VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated) ON CONFLICT (user_id,ticker) DO NOTHING''',
+                    {'uid':uid,'ticker':r['ticker'],'q':float(r['quantity']),'cost':float(r['avg_cost']),
+                     'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r.get('updated_at')})
+        if int(counts.iloc[0].get('t',0) or 0)==0:
+            old=query_sql('SELECT ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note FROM investment_theses')
+            for _,r in old.iterrows():
+                execute_sql('''INSERT INTO user_investment_theses (user_id,ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note)
+                    VALUES (:uid,:ticker,:created,:updated,:thesis,:catalysts,:invalidation,:target,:review,:status,:note)
+                    ON CONFLICT (user_id,ticker) DO NOTHING''',
+                    {'uid':uid,'ticker':r['ticker'],'created':r.get('created_at'),'updated':r.get('updated_at'),
+                     'thesis':str(r.get('thesis','') or ''),'catalysts':str(r.get('catalysts','') or ''),'invalidation':str(r.get('invalidation','') or ''),
+                     'target':str(r.get('target','') or ''),'review':str(r.get('review_date','') or ''),'status':str(r.get('status','ACTIVE') or 'ACTIVE'),'note':str(r.get('note','') or '')})
+    except Exception as exc:
+        log_event('cloud_portfolio_legacy_migration_error',error=str(exc)[:180])
+
+
 def _mirror_positions_csv():
     try:
-        con=_conn(); df=con.execute('SELECT * FROM portfolio_positions ORDER BY ticker').df(); con.close();
+        con=_conn(); _ensure_user_portfolio_tables(con)
+        df=con.execute('SELECT * FROM user_portfolio_positions ORDER BY user_id,ticker').df(); con.close()
         path=DATA_DIR/'portfolio_positions.csv'; df.to_csv(path,index=False); return path
     except Exception as e:
         log_event('positions_mirror_error',error=str(e)[:180]); return None
@@ -366,90 +433,129 @@ def _mirror_positions_csv():
 def import_positions_csv_if_needed():
     path=DATA_DIR/'portfolio_positions.csv'
     if not path.exists(): return
-    con=_conn()
+    con=_conn(); _ensure_user_portfolio_tables(con)
     try:
-        count=con.execute('SELECT COUNT(*) FROM portfolio_positions').fetchone()[0]
-        if count==0:
+        if con.execute('SELECT COUNT(*) FROM user_portfolio_positions').fetchone()[0]==0:
             df=pd.read_csv(path)
             if not df.empty:
-                df['updated_at']=pd.to_datetime(df['updated_at'],errors='coerce'); con.register('tmp_positions',df); con.execute('INSERT INTO portfolio_positions SELECT * FROM tmp_positions')
+                if 'user_id' not in df.columns: df.insert(0,'user_id',_default_alert_user_id())
+                for c,v in {'sector':'Unknown','note':'','updated_at':_utcnow_naive()}.items():
+                    if c not in df.columns: df[c]=v
+                df['updated_at']=pd.to_datetime(df['updated_at'],errors='coerce')
+                cols=['user_id','ticker','quantity','avg_cost','sector','note','updated_at']
+                con.register('tmp_positions',df[cols]); con.execute('INSERT OR IGNORE INTO user_portfolio_positions SELECT * FROM tmp_positions')
     except Exception as e: log_event('positions_import_error',error=str(e)[:180])
     con.close()
 
 
-def upsert_position(ticker, quantity, avg_cost, sector='Unknown', note=''):
-    ticker=ticker.upper().strip(); now=_utcnow_naive(); vals=[ticker,float(quantity),float(avg_cost),sector,note,now]
-    con=_conn(); con.execute('INSERT OR REPLACE INTO portfolio_positions VALUES (?,?,?,?,?,?)',vals); con.close(); _mirror_positions_csv()
+def upsert_position(ticker, quantity, avg_cost, sector='Unknown', note='', user_id=None):
+    ticker=str(ticker or '').upper().strip()
+    if not ticker: raise ValueError('Ticker vacío')
+    q=float(quantity); cost=float(avg_cost)
+    if q < 0 or cost < 0: raise ValueError('Cantidad y costo deben ser >= 0')
+    uid=str(user_id or _default_alert_user_id()); now=_utcnow_naive()
+    con=_conn(); _ensure_user_portfolio_tables(con)
+    con.execute('''INSERT INTO user_portfolio_positions VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
+        sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+        [uid,ticker,q,cost,str(sector or 'Unknown'),str(note or '')[:500],now])
+    con.close(); _mirror_positions_csv()
     if cloud_available():
-        execute_sql('''INSERT INTO portfolio_positions (ticker,quantity,avg_cost,sector,note,updated_at)
-            VALUES (:ticker,:q,:cost,:sector,:note,:updated)
-            ON CONFLICT (ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
-            {'ticker':ticker,'q':float(quantity),'cost':float(avg_cost),'sector':sector,'note':note,'updated':now})
+        ok,msg=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
+            VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated)
+            ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
+            sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+            {'uid':uid,'ticker':ticker,'q':q,'cost':cost,'sector':str(sector or 'Unknown'),'note':str(note or '')[:500],'updated':now})
+        if not ok: raise RuntimeError(f'No se pudo guardar la posición en Postgres: {msg}')
+    return True
 
 
-def load_positions():
+def load_positions(user_id=None):
+    uid=str(user_id or _default_alert_user_id())
     if cloud_available():
-        x=query_sql('SELECT * FROM portfolio_positions ORDER BY ticker')
+        _migrate_cloud_legacy_portfolio_if_needed(uid)
+        x=query_sql('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=:uid ORDER BY ticker',{'uid':uid})
         if not x.empty: return x
-    import_positions_csv_if_needed(); con=_conn(); df=con.execute('SELECT * FROM portfolio_positions ORDER BY ticker').df(); con.close(); return df
+    import_positions_csv_if_needed(); con=_conn(); _ensure_user_portfolio_tables(con)
+    df=con.execute('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=? ORDER BY ticker',[uid]).df(); con.close(); return df
 
 
-def delete_position(ticker):
-    ticker=ticker.upper().strip(); con=_conn(); con.execute('DELETE FROM portfolio_positions WHERE ticker=?',[ticker]); con.close(); _mirror_positions_csv()
-    if cloud_available(): execute_sql('DELETE FROM portfolio_positions WHERE ticker=:ticker',{'ticker':ticker})
+def delete_position(ticker, user_id=None):
+    ticker=str(ticker or '').upper().strip(); uid=str(user_id or _default_alert_user_id())
+    if cloud_available():
+        ok,msg=execute_sql('DELETE FROM user_portfolio_positions WHERE user_id=:uid AND ticker=:ticker',{'uid':uid,'ticker':ticker})
+        if not ok: raise RuntimeError(msg)
+    con=_conn(); _ensure_user_portfolio_tables(con)
+    con.execute('DELETE FROM user_portfolio_positions WHERE user_id=? AND ticker=?',[uid,ticker]); con.close(); _mirror_positions_csv()
 
 
 def _mirror_theses_csv():
     try:
-        con=_conn(); df=con.execute('SELECT * FROM investment_theses ORDER BY ticker').df(); con.close(); path=DATA_DIR/'investment_theses.csv'; df.to_csv(path,index=False); return path
+        con=_conn(); _ensure_user_portfolio_tables(con)
+        df=con.execute('SELECT * FROM user_investment_theses ORDER BY user_id,ticker').df(); con.close()
+        path=DATA_DIR/'investment_theses.csv'; df.to_csv(path,index=False); return path
     except Exception as e: log_event('theses_mirror_error',error=str(e)[:180]); return None
 
 
 def import_theses_csv_if_needed():
     path=DATA_DIR/'investment_theses.csv'
     if not path.exists(): return
-    con=_conn()
+    con=_conn(); _ensure_user_portfolio_tables(con)
     try:
-        count=con.execute('SELECT COUNT(*) FROM investment_theses').fetchone()[0]
-        if count==0:
+        if con.execute('SELECT COUNT(*) FROM user_investment_theses').fetchone()[0]==0:
             df=pd.read_csv(path)
             if not df.empty:
+                if 'user_id' not in df.columns: df.insert(0,'user_id',_default_alert_user_id())
                 for c in THESIS_COLUMNS:
                     if c not in df.columns: df[c]=''
                 for c in ['created_at','updated_at']: df[c]=pd.to_datetime(df[c],errors='coerce')
-                con.register('tmp_theses',df[THESIS_COLUMNS]); con.execute('INSERT INTO investment_theses SELECT * FROM tmp_theses')
+                con.register('tmp_theses',df[['user_id']+THESIS_COLUMNS]); con.execute('INSERT OR IGNORE INTO user_investment_theses SELECT * FROM tmp_theses')
     except Exception as e: log_event('theses_import_error',error=str(e)[:180])
     con.close()
 
 
-def upsert_thesis(ticker, thesis='', catalysts='', invalidation='', target='', review_date='', status='ACTIVE', note=''):
-    ticker=ticker.upper().strip(); now=_utcnow_naive(); existing=load_theses(ticker)
-    created=existing.iloc[0]['created_at'] if not existing.empty else now
-    vals=[ticker,created,now,thesis,catalysts,invalidation,target,str(review_date),status,note]
-    con=_conn(); con.execute('INSERT OR REPLACE INTO investment_theses VALUES (?,?,?,?,?,?,?,?,?,?)',vals); con.close(); _mirror_theses_csv()
+def upsert_thesis(ticker, thesis='', catalysts='', invalidation='', target='', review_date='', status='ACTIVE', note='', user_id=None):
+    ticker=str(ticker or '').upper().strip(); uid=str(user_id or _default_alert_user_id()); now=_utcnow_naive()
+    if not ticker: raise ValueError('Ticker vacío')
+    existing=load_theses(ticker,user_id=uid); created=existing.iloc[0]['created_at'] if not existing.empty else now
+    vals=[uid,ticker,created,now,str(thesis or ''),str(catalysts or ''),str(invalidation or ''),str(target or ''),str(review_date),str(status or 'ACTIVE'),str(note or '')]
+    con=_conn(); _ensure_user_portfolio_tables(con)
+    con.execute('''INSERT INTO user_investment_theses VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT (user_id,ticker) DO UPDATE SET updated_at=EXCLUDED.updated_at,thesis=EXCLUDED.thesis,
+        catalysts=EXCLUDED.catalysts,invalidation=EXCLUDED.invalidation,target=EXCLUDED.target,
+        review_date=EXCLUDED.review_date,status=EXCLUDED.status,note=EXCLUDED.note''',vals)
+    con.close(); _mirror_theses_csv()
     if cloud_available():
-        execute_sql('''INSERT INTO investment_theses (ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note)
-            VALUES (:ticker,:created,:updated,:thesis,:catalysts,:invalidation,:target,:review,:status,:note)
-            ON CONFLICT (ticker) DO UPDATE SET updated_at=EXCLUDED.updated_at,thesis=EXCLUDED.thesis,catalysts=EXCLUDED.catalysts,
+        ok,msg=execute_sql('''INSERT INTO user_investment_theses (user_id,ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note)
+            VALUES (:uid,:ticker,:created,:updated,:thesis,:catalysts,:invalidation,:target,:review,:status,:note)
+            ON CONFLICT (user_id,ticker) DO UPDATE SET updated_at=EXCLUDED.updated_at,thesis=EXCLUDED.thesis,catalysts=EXCLUDED.catalysts,
             invalidation=EXCLUDED.invalidation,target=EXCLUDED.target,review_date=EXCLUDED.review_date,status=EXCLUDED.status,note=EXCLUDED.note''',
-            {'ticker':ticker,'created':created,'updated':now,'thesis':thesis,'catalysts':catalysts,'invalidation':invalidation,'target':target,'review':str(review_date),'status':status,'note':note})
+            {'uid':uid,'ticker':ticker,'created':created,'updated':now,'thesis':str(thesis or ''),'catalysts':str(catalysts or ''),'invalidation':str(invalidation or ''),'target':str(target or ''),'review':str(review_date),'status':str(status or 'ACTIVE'),'note':str(note or '')})
+        if not ok: raise RuntimeError(f'No se pudo guardar la tesis en Postgres: {msg}')
+    return True
 
 
-def load_theses(ticker=None):
+def load_theses(ticker=None, user_id=None):
+    uid=str(user_id or _default_alert_user_id())
     if cloud_available():
-        q='SELECT * FROM investment_theses'; params={}
-        if ticker: q+=' WHERE ticker=:ticker'; params={'ticker':ticker.upper().strip()}
+        _migrate_cloud_legacy_portfolio_if_needed(uid)
+        q='SELECT ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note FROM user_investment_theses WHERE user_id=:uid'; params={'uid':uid}
+        if ticker: q+=' AND ticker=:ticker'; params['ticker']=str(ticker).upper().strip()
         q+=' ORDER BY updated_at DESC'; x=query_sql(q,params)
         if not x.empty: return x
-    import_theses_csv_if_needed(); con=_conn(); q='SELECT * FROM investment_theses'; params=[]
-    if ticker: q+=' WHERE ticker=?'; params=[ticker.upper().strip()]
+    import_theses_csv_if_needed(); con=_conn(); _ensure_user_portfolio_tables(con)
+    q='SELECT ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note FROM user_investment_theses WHERE user_id=?'; params=[uid]
+    if ticker: q+=' AND ticker=?'; params.append(str(ticker).upper().strip())
     q+=' ORDER BY updated_at DESC'; x=con.execute(q,params).df(); con.close(); return x
 
 
-def delete_thesis(ticker):
-    ticker=ticker.upper().strip(); con=_conn(); con.execute('DELETE FROM investment_theses WHERE ticker=?',[ticker]); con.close(); _mirror_theses_csv()
-    if cloud_available(): execute_sql('DELETE FROM investment_theses WHERE ticker=:ticker',{'ticker':ticker})
-
+def delete_thesis(ticker, user_id=None):
+    ticker=str(ticker or '').upper().strip(); uid=str(user_id or _default_alert_user_id())
+    if cloud_available():
+        ok,msg=execute_sql('DELETE FROM user_investment_theses WHERE user_id=:uid AND ticker=:ticker',{'uid':uid,'ticker':ticker})
+        if not ok: raise RuntimeError(msg)
+    con=_conn(); _ensure_user_portfolio_tables(con)
+    con.execute('DELETE FROM user_investment_theses WHERE user_id=? AND ticker=?',[uid,ticker]); con.close(); _mirror_theses_csv()
 
 def save_json_snapshot(data, name):
     path=SNAPSHOT_DIR/f'{name}.json'
@@ -489,45 +595,64 @@ def load_json_snapshot(name):
 
 
 def sync_local_state_to_cloud():
-    """One-way bootstrap for enabling Postgres/Supabase after using local/CSV storage.
-
-    Existing cloud rows are upserted, never blindly replaced. Returns a per-table report.
-    """
+    # One-way bootstrap for Postgres. User IDs are preserved for all scoped data.
     report=[]
     if not cloud_available():
         return pd.DataFrame([{'Table':'all','Rows':0,'Status':'DATABASE_URL not configured'}])
     ensure_production_schema()
-    # Alerts
-    import_alerts_csv_if_needed(); con=_conn(); alerts=_normalize_alerts(con.execute('SELECT * FROM saved_alerts').df()); states=_normalize_alert_state(con.execute('SELECT * FROM alert_state').df()); positions=con.execute('SELECT * FROM portfolio_positions').df(); theses=con.execute('SELECT * FROM investment_theses').df(); con.close()
+    import_alerts_csv_if_needed(); import_positions_csv_if_needed(); import_theses_csv_if_needed()
+    con=_conn(); _ensure_user_portfolio_tables(con)
+    alerts=_normalize_alerts(con.execute('SELECT * FROM saved_alerts').df())
+    states=_normalize_alert_state(con.execute('SELECT * FROM alert_state').df())
+    positions=con.execute('SELECT * FROM user_portfolio_positions').df()
+    theses=con.execute('SELECT * FROM user_investment_theses').df(); con.close()
+
     ok_count=0
     for _,r in alerts.iterrows():
-        ok,_=execute_sql('''INSERT INTO saved_alerts (id,created_at,ticker,rule_type,threshold,enabled,note,cooldown_minutes,repeat_while_true)
-            VALUES (:id,:created_at,:ticker,:rule_type,:threshold,:enabled,:note,:cooldown,:repeat)
-            ON CONFLICT (id) DO UPDATE SET ticker=EXCLUDED.ticker,rule_type=EXCLUDED.rule_type,threshold=EXCLUDED.threshold,enabled=EXCLUDED.enabled,note=EXCLUDED.note,cooldown_minutes=EXCLUDED.cooldown_minutes,repeat_while_true=EXCLUDED.repeat_while_true''',
-            {'id':int(r['id']),'created_at':r['created_at'],'ticker':r['ticker'],'rule_type':r['rule_type'],'threshold':float(r['threshold']),'enabled':bool(r['enabled']),'note':str(r.get('note','') or ''),'cooldown':int(r.get('cooldown_minutes',240) or 240),'repeat':bool(r.get('repeat_while_true',False))})
+        ok,_=execute_sql('''INSERT INTO saved_alerts (id,user_id,created_at,ticker,rule_type,threshold,enabled,note,cooldown_minutes,repeat_while_true)
+            VALUES (:id,:uid,:created_at,:ticker,:rule_type,:threshold,:enabled,:note,:cooldown,:repeat)
+            ON CONFLICT (id) DO UPDATE SET user_id=EXCLUDED.user_id,ticker=EXCLUDED.ticker,rule_type=EXCLUDED.rule_type,
+            threshold=EXCLUDED.threshold,enabled=EXCLUDED.enabled,note=EXCLUDED.note,cooldown_minutes=EXCLUDED.cooldown_minutes,
+            repeat_while_true=EXCLUDED.repeat_while_true''',
+            {'id':int(r['id']),'uid':str(r.get('user_id') or 'local-user'),'created_at':r['created_at'],'ticker':r['ticker'],
+             'rule_type':r['rule_type'],'threshold':float(r['threshold']),'enabled':bool(r['enabled']),'note':str(r.get('note','') or ''),
+             'cooldown':int(r.get('cooldown_minutes',240) or 240),'repeat':bool(r.get('repeat_while_true',False))})
         ok_count+=int(ok)
     report.append({'Table':'saved_alerts','Rows':len(alerts),'Status':f'{ok_count}/{len(alerts)} synced'})
+
     ok_count=0
     for _,r in states.iterrows():
         ok,_=execute_sql('''INSERT INTO alert_state (alert_id,last_hit,last_triggered_at,last_evaluated_at,last_message,trigger_count)
             VALUES (:id,:hit,:trig,:eval,:msg,:count)
-            ON CONFLICT (alert_id) DO UPDATE SET last_hit=EXCLUDED.last_hit,last_triggered_at=EXCLUDED.last_triggered_at,last_evaluated_at=EXCLUDED.last_evaluated_at,last_message=EXCLUDED.last_message,trigger_count=EXCLUDED.trigger_count''',
-            {'id':int(r['alert_id']),'hit':bool(r['last_hit']),'trig':r['last_triggered_at'],'eval':r['last_evaluated_at'],'msg':str(r.get('last_message','') or ''),'count':int(r.get('trigger_count',0) or 0)})
+            ON CONFLICT (alert_id) DO UPDATE SET last_hit=EXCLUDED.last_hit,last_triggered_at=EXCLUDED.last_triggered_at,
+            last_evaluated_at=EXCLUDED.last_evaluated_at,last_message=EXCLUDED.last_message,trigger_count=EXCLUDED.trigger_count''',
+            {'id':int(r['alert_id']),'hit':bool(r['last_hit']),'trig':r['last_triggered_at'],'eval':r['last_evaluated_at'],
+             'msg':str(r.get('last_message','') or ''),'count':int(r.get('trigger_count',0) or 0)})
         ok_count+=int(ok)
     report.append({'Table':'alert_state','Rows':len(states),'Status':f'{ok_count}/{len(states)} synced'})
+
     ok_count=0
     for _,r in positions.iterrows():
-        ok,_=execute_sql('''INSERT INTO portfolio_positions (ticker,quantity,avg_cost,sector,note,updated_at) VALUES (:ticker,:q,:cost,:sector,:note,:updated)
-            ON CONFLICT (ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
-            {'ticker':r['ticker'],'q':float(r['quantity']),'cost':float(r['avg_cost']),'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r['updated_at']})
+        ok,_=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
+            VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated)
+            ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
+            sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+            {'uid':str(r['user_id']),'ticker':r['ticker'],'q':float(r['quantity']),'cost':float(r['avg_cost']),
+             'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r['updated_at']})
         ok_count+=int(ok)
-    report.append({'Table':'portfolio_positions','Rows':len(positions),'Status':f'{ok_count}/{len(positions)} synced'})
+    report.append({'Table':'user_portfolio_positions','Rows':len(positions),'Status':f'{ok_count}/{len(positions)} synced'})
+
     ok_count=0
     for _,r in theses.iterrows():
-        ok,_=execute_sql('''INSERT INTO investment_theses (ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note)
-            VALUES (:ticker,:created,:updated,:thesis,:catalysts,:invalidation,:target,:review,:status,:note)
-            ON CONFLICT (ticker) DO UPDATE SET updated_at=EXCLUDED.updated_at,thesis=EXCLUDED.thesis,catalysts=EXCLUDED.catalysts,invalidation=EXCLUDED.invalidation,target=EXCLUDED.target,review_date=EXCLUDED.review_date,status=EXCLUDED.status,note=EXCLUDED.note''',
-            {'ticker':r['ticker'],'created':r['created_at'],'updated':r['updated_at'],'thesis':str(r.get('thesis','') or ''),'catalysts':str(r.get('catalysts','') or ''),'invalidation':str(r.get('invalidation','') or ''),'target':str(r.get('target','') or ''),'review':str(r.get('review_date','') or ''),'status':str(r.get('status','ACTIVE') or 'ACTIVE'),'note':str(r.get('note','') or '')})
+        ok,_=execute_sql('''INSERT INTO user_investment_theses (user_id,ticker,created_at,updated_at,thesis,catalysts,invalidation,target,review_date,status,note)
+            VALUES (:uid,:ticker,:created,:updated,:thesis,:catalysts,:invalidation,:target,:review,:status,:note)
+            ON CONFLICT (user_id,ticker) DO UPDATE SET updated_at=EXCLUDED.updated_at,thesis=EXCLUDED.thesis,
+            catalysts=EXCLUDED.catalysts,invalidation=EXCLUDED.invalidation,target=EXCLUDED.target,
+            review_date=EXCLUDED.review_date,status=EXCLUDED.status,note=EXCLUDED.note''',
+            {'uid':str(r['user_id']),'ticker':r['ticker'],'created':r['created_at'],'updated':r['updated_at'],
+             'thesis':str(r.get('thesis','') or ''),'catalysts':str(r.get('catalysts','') or ''),'invalidation':str(r.get('invalidation','') or ''),
+             'target':str(r.get('target','') or ''),'review':str(r.get('review_date','') or ''),'status':str(r.get('status','ACTIVE') or 'ACTIVE'),
+             'note':str(r.get('note','') or '')})
         ok_count+=int(ok)
-    report.append({'Table':'investment_theses','Rows':len(theses),'Status':f'{ok_count}/{len(theses)} synced'})
+    report.append({'Table':'user_investment_theses','Rows':len(theses),'Status':f'{ok_count}/{len(theses)} synced'})
     return pd.DataFrame(report)

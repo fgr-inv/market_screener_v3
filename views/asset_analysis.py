@@ -81,7 +81,7 @@ else:
 
 
 try:
-    positions=load_positions()
+    positions=load_positions(user_id=_user['user_id'])
 except Exception:
     positions=pd.DataFrame()
 portfolio_tickers=list(positions['ticker'].astype(str).str.upper()) if isinstance(positions,pd.DataFrame) and not positions.empty and 'ticker' in positions else []

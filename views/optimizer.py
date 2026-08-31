@@ -1,5 +1,6 @@
 import pandas as pd
 import streamlit as st
+from core.access_control import current_user
 from core.storage import load_positions
 from core.market_data import download_prices
 from core.optimizer import risk_parity_weights, correlation_penalty_weights
@@ -7,7 +8,8 @@ from core.advanced_optimizer import min_variance_weights, max_sharpe_weights
 from core.ui import hero, section_note
 
 hero('Portfolio Optimizer','Risk parity, correlation-aware, shrinkage min-variance y constrained max-Sharpe.','Portfolio Construction')
-pos=load_positions()
+user=current_user(); uid=user['user_id']
+pos=load_positions(user_id=uid)
 if pos.empty:
     st.info('No positions saved.'); st.stop()
 

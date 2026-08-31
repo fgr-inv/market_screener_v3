@@ -6,7 +6,7 @@ on:
     - cron: "0 * * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: market-alerts
@@ -38,14 +38,3 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
         run: python -m scripts.run_alerts
-
-      - name: Persist fallback alert state
-        if: always()
-        run: |
-          if [ -f data/alert_state.csv ]; then
-            git config user.name "market-screener-bot"
-            git config user.email "actions@users.noreply.github.com"
-            git add data/alert_state.csv
-            git diff --cached --quiet || git commit -m "chore: persist alert state"
-            git push
-          fi

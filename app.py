@@ -2,6 +2,7 @@ import streamlit as st
 from core.config import APP_NAME,APP_VERSION
 from core.state import init_state
 from core.ui import inject_css
+from core.access_control import current_user
 
 st.set_page_config(page_title=APP_NAME,page_icon='📈',layout='wide',initial_sidebar_state='expanded')
 init_state(); inject_css()
@@ -48,12 +49,16 @@ quant=[
 ]
 operations=[
     st.Page('views/account.py',title='Account & Plan',icon='👤'),
-    st.Page('views/alerts.py',title='Live Alerts',icon='🚨'),
+    st.Page('views/alerts.py',title='Alert Center',icon='🚨'),
     st.Page('views/saved_alerts.py',title='Saved Alerts',icon='🔔'),
     st.Page('views/daily_review.py',title='Daily Review',icon='🗓️'),
-    st.Page('views/system_health.py',title='System Health',icon='🩺'),
-    st.Page('views/data_hub.py',title='Institutional Data Hub',icon='🗄️'),
 ]
+_nav_user=current_user()
+if _nav_user.get('role')=='OWNER':
+    operations += [
+        st.Page('views/system_health.py',title='System Health',icon='🩺'),
+        st.Page('views/data_hub.py',title='Institutional Data Hub',icon='🗄️'),
+    ]
 
 st.sidebar.caption(f'{APP_NAME} · V{APP_VERSION}')
 st.navigation({'MARKET':market,'RESEARCH':research,'PORTFOLIO':portfolio,'QUANT':quant,'OPERATIONS':operations}).run()
