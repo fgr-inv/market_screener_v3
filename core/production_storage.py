@@ -199,6 +199,48 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_agent_event_state_latest
                ON user_agent_event_state(user_id,last_triggered_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS user_shadow_decisions (
+                user_id TEXT NOT NULL,
+                decision_key TEXT NOT NULL,
+                run_key TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                decision_at TIMESTAMP NOT NULL,
+                ticker TEXT NOT NULL,
+                source_agent TEXT NOT NULL,
+                signal_state TEXT NOT NULL,
+                expected_direction TEXT NOT NULL,
+                confidence DOUBLE PRECISION,
+                verification_status TEXT,
+                baseline_price DOUBLE PRECISION,
+                benchmark_price DOUBLE PRECISION,
+                baseline_status TEXT NOT NULL,
+                skill_version TEXT,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (user_id,decision_key)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_shadow_decisions_time
+               ON user_shadow_decisions(user_id,decision_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS user_shadow_outcomes (
+                user_id TEXT NOT NULL,
+                decision_key TEXT NOT NULL,
+                horizon_days INTEGER NOT NULL,
+                evaluated_at TIMESTAMP NOT NULL,
+                status TEXT NOT NULL,
+                outcome_at TIMESTAMP NULL,
+                asset_return_pct DOUBLE PRECISION,
+                benchmark_return_pct DOUBLE PRECISION,
+                alpha_pct DOUBLE PRECISION,
+                signed_return_pct DOUBLE PRECISION,
+                signed_alpha_pct DOUBLE PRECISION,
+                mfe_pct DOUBLE PRECISION,
+                mae_pct DOUBLE PRECISION,
+                success BOOLEAN,
+                source TEXT,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (user_id,decision_key,horizon_days)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_shadow_outcomes_status
+               ON user_shadow_outcomes(user_id,status,horizon_days)''',
         ]
         with cloud_connection() as con:
             for stmt in statements:

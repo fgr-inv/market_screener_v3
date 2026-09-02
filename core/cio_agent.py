@@ -9,6 +9,7 @@ def _compact(d):
         'subject':d.get('subject'),'agent':d.get('agent'),'state':d.get('state'),
         'confidence':d.get('confidence'),'summary':d.get('summary'),
         'verification_status':d.get('verification_status'),
+        'skill_version':d.get('skill_version'),
     }
 
 

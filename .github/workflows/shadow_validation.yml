@@ -1,0 +1,37 @@
+name: Shadow decision forward validation
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Runs after the normal end-of-day snapshot refresh.
+    - cron: '15 23 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shadow-decision-forward-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Require persistent database
+        run: test -n "${DATABASE_URL}" || (echo "DATABASE_URL is required" && exit 1)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Evaluate matured shadow decisions
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
+        run: python -m scripts.evaluate_shadow_decisions

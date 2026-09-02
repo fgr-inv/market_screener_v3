@@ -13,6 +13,7 @@ from core.verification_agent import verify_result
 from core.cio_agent import build_cio_brief
 from core.agent_audit import append_agent_audit,load_agent_audit
 from core.desk_store import load_latest_desk_output
+from core.shadow_validation import load_shadow_decisions,load_shadow_outcomes,shadow_validation_summary
 
 hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. The desk reuses central market snapshots and shared price/fundamental caches, reads your saved portfolio automatically, ranks a watchlist, and never sends broker orders.')
@@ -50,6 +51,27 @@ if auto and auto.get('payload'):
     if aw:
         with st.expander('Automated desk watchlist',expanded=False):
             st.dataframe(pd.DataFrame(aw),use_container_width=True,hide_index=True)
+
+shadow_decisions=load_shadow_decisions(uid)
+shadow_outcomes=load_shadow_outcomes(uid)
+shadow_summary=shadow_validation_summary(shadow_decisions,shadow_outcomes)
+st.subheader('Shadow Forward Validation')
+c1,c2,c3,c4=st.columns(4)
+c1.metric('Decisions recorded',shadow_summary['decisions'])
+c2.metric('Matured outcomes',shadow_summary['matured_outcomes'])
+c3.metric('Pending outcomes',shadow_summary['pending_outcomes'])
+c4.metric('Evidence status',shadow_summary['status'])
+if shadow_summary['status'] in {'NO_DECISIONS','NOT_ENOUGH_DATA'}:
+    st.info(f"Forward evidence: {shadow_summary['status']}. No performance conclusion until at least {shadow_summary['minimum_reliable_sample']} matured observations per horizon.")
+horizon_rows=pd.DataFrame(shadow_summary['horizons'])
+if not horizon_rows.empty:
+    st.dataframe(horizon_rows,use_container_width=True,hide_index=True)
+if shadow_decisions:
+    recent=pd.DataFrame(shadow_decisions).sort_values('decision_at',ascending=False).head(20)
+    columns=[c for c in ['decision_at','ticker','source_agent','signal_state','expected_direction','confidence','verification_status','baseline_price','baseline_status'] if c in recent]
+    with st.expander('Recent recorded decisions',expanded=False):
+        st.dataframe(recent[columns],use_container_width=True,hide_index=True)
+st.caption('Forward validation is observational: 1/5/20 trading-day outcomes versus SPY. It never creates a paper or live position.')
 pos=load_positions(user_id=uid)
 source=st.session_state.get('scan_results')
 defaults=[] if source is None or source.empty or 'Ticker' not in source else source['Ticker'].dropna().astype(str).head(12).tolist()

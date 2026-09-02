@@ -472,3 +472,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Integrated material-only CIO notifications with the existing per-user webhook settings. Missing webhooks and failed deliveries remain explicit and retriable.
 - Completed the event → router → agents → verification → CIO → alert/no-alert audit chain while keeping all automation in SHADOW MODE.
 - Private portfolio, thesis, journal, alert, audit, agent-output, and event-state files are excluded from Git.
+
+## V11.30 — Shadow Decision Ledger + Forward Validation
+- Automated CIO reviews now persist eligible verified decisions in a user-scoped, idempotent shadow ledger. The ledger stores the original timestamp, agent/state, direction, confidence, verification, baseline price and skill version.
+- Shadow records are observations only: they never create an order, fill, broker position, paper account or executable instruction.
+- Added fixed 1/5/20 trading-day outcome evaluation with directional return, SPY-relative alpha, maximum favorable excursion and maximum adverse excursion.
+- Added a daily post-close GitHub Actions worker that evaluates only open decisions in one shared price batch and persists outcomes in Postgres with a private local fallback.
+- The Investment Desk UI now shows recorded decisions, matured/pending observations, hit rate, directional return/alpha and Brier calibration by horizon.
+- Performance stays `NOT_ENOUGH_DATA` until at least 20 matured observations exist for a horizon; missing prices remain `PENDING` or `UNAVAILABLE`, never zero or neutral.
+- V11.30 remains SHADOW MODE. Paper portfolio and Alpaca integration are intentionally out of scope.

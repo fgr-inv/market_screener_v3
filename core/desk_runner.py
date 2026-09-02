@@ -12,14 +12,18 @@ from core.cio_agent import build_cio_brief
 from core.agent_audit import append_agent_audit
 from core.desk_store import save_desk_output
 from core.agent_router import full_review_plan
+from core.shadow_validation import capture_shadow_decisions
 
 def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_review',max_tickers=25,
                     agent_plan=None,events=None,run_key=None):
     uid=str(user_id or 'local-user'); tickers=list(dict.fromkeys(str(x).upper().strip() for x in tickers if str(x).strip()))[:max_tickers]
     plan=agent_plan or full_review_plan(tickers); ticker_agents=plan.get('ticker_agents') or {}; global_agents=set(plan.get('global_agents') or [])
+    automated=output_type in {'scheduled_review','daily_cio_brief'} and bool(run_key)
     pos=load_positions(user_id=uid); position_ticks=[] if pos.empty else pos['ticker'].dropna().astype(str).str.upper().tolist()
     needs_prices='portfolio' in global_agents or any('technical' in agents for agents in ticker_agents.values())
     price_ticks=list(ticker_agents) + (position_ticks if 'portfolio' in global_agents else [])
+    if automated and ticker_agents: price_ticks.append('SPY')
+    needs_prices=needs_prices or bool(automated and ticker_agents)
     all_ticks=list(dict.fromkeys(price_ticks)); histories=download_prices(all_ticks,period='2y',max_age_minutes=15) if needs_prices and all_ticks else {}
     verified=[]
     append_agent_audit(uid,'events_received',{'events':events or [],'run_key':run_key,'shadow_mode':True})
@@ -48,10 +52,18 @@ def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_
     if not pos.empty: sectors.update({str(r['ticker']).upper():str(r.get('sector','Unknown') or 'Unknown') for _,r in pos.iterrows()})
     watchlist=build_watchlist(verified,portfolio,sectors=sectors,limit=15,market_result=market)
     brief=build_cio_brief(verified,watchlist=watchlist,events=events)
+    shadow_capture=(capture_shadow_decisions(uid,run_key,brief,histories) if automated else
+                    {'status':'NOT_CHECKED','created':[],'skipped':0,'reason':'manual/non-automated review'})
     payload={'shadow_mode':True,'tickers':tickers,'events':events or [],'routing':plan,
              'agents_invoked':[{'agent':r.agent,'subject':r.subject} for r in verified],
              'market':None if market is None else market.to_dict(),
-             'portfolio':None if portfolio is None else portfolio.to_dict(),'watchlist':watchlist,'brief':brief}
+             'portfolio':None if portfolio is None else portfolio.to_dict(),'watchlist':watchlist,'brief':brief,
+             'shadow_decision_capture':shadow_capture}
+    append_agent_audit(uid,'shadow_decisions_captured',{'run_key':run_key,'status':shadow_capture.get('status'),
+                       'created':[r.get('decision_key') for r in shadow_capture.get('created',[])],
+                       'skipped':shadow_capture.get('skipped',0),'shadow_mode':True})
+    if automated and shadow_capture.get('status')=='FAILED':
+        raise RuntimeError('Shadow decision persistence failed; automated run remains retriable.')
     append_agent_audit(uid,'scheduled_cio_brief',{'headline':brief['headline'],'material':brief['material'],'tickers':tickers,'run_key':run_key,'shadow_mode':True})
     save_desk_output(uid,output_type,payload,run_key=run_key)
     return payload

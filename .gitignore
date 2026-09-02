@@ -16,3 +16,4 @@ data/agent_audit/
 data/agent_outputs/
 data/agent_event_state/
 data/agent_snapshots/
+data/shadow_validation/

@@ -87,7 +87,9 @@ def detect_snapshot_events(
                 move=(price/old_price-1)*100
                 if abs(move)>=price_move_pct:
                     types.append('large_price_move'); reasons.append(f'Price moved {move:+.1f}%'); severity+=3 if abs(move)>=7 else 2
-                    metrics['price_move_pct']=round(move,1)
+                    metrics['price_move_pct']=round(move,1); metrics['price']=round(price,6)
+                    observed=_text(r.get('Live_Observed_At'))
+                    if observed: metrics['observed_at']=observed
             old_entry=_num(old.get('Entry_Score'))
             if entry is not None and old_entry is not None and abs(entry-old_entry)>=12:
                 types.append('technical_score_change'); reasons.append(f'Entry score moved {entry-old_entry:+.0f}'); severity+=2
