@@ -461,3 +461,14 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Investment Desk UI now surfaces the latest automated CIO brief/watchlist.
 - Background execution remains SHADOW MODE only: there is no broker/order path.
 - Fundamental refreshes continue through the shared V11.25 cache/data-budget layer.
+
+## V11.29 — Background Desk hardening
+- Expanded the cheap detector with typed cached events for price moves, abnormal volume, technical state/score changes, fundamental/event changes, stale snapshots, and market-regime changes.
+- Added one bounded 5-minute batch for current holdings plus top cached candidates (maximum 25 symbols), so the 30-minute worker can detect intraday moves/volume while avoiding a full-universe or per-agent refresh.
+- Added deterministic agent routing: scheduled scans invoke only the specialists required by each event; a large move can escalate to Fundamental, Portfolio, and Market context without turning every 30-minute scan into a full-universe refresh.
+- Added user-scoped persistent event fingerprints and cooldown state in Postgres, with a private local fallback. Identical events are deduplicated and changed events respect cooldowns.
+- Added idempotent run keys for scheduled reviews, daily briefs, and CIO alert deliveries, so GitHub Actions retries do not duplicate work or notifications.
+- Upgraded the Daily CIO Brief to explicit Market Regime, Principal Risk, Top Opportunities, Portfolio Items, Thesis Changes, Avoid/Conflicting, and Decisions Needed sections.
+- Integrated material-only CIO notifications with the existing per-user webhook settings. Missing webhooks and failed deliveries remain explicit and retriable.
+- Completed the event → router → agents → verification → CIO → alert/no-alert audit chain while keeping all automation in SHADOW MODE.
+- Private portfolio, thesis, journal, alert, audit, agent-output, and event-state files are excluded from Git.

@@ -9,8 +9,10 @@ data/market_screener.duckdb
 data/portfolio_positions.csv
 data/investment_theses.csv
 data/trade_journal.csv
+data/alerts.csv
+data/alert_state.csv
+data/notification_settings.json
 data/agent_audit/
 data/agent_outputs/
-data/notification_settings.json
-data/alert_state.csv
+data/agent_event_state/
 data/agent_snapshots/

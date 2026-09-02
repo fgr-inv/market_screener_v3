@@ -147,6 +147,23 @@ def download_prices(tickers,period="2y",batch_size=80,max_age_minutes=PRICE_DISK
     return out
 
 
+def download_intraday_prices(tickers,period='5d',interval='5m'):
+    """One bounded batch for the background event detector; no per-symbol retry."""
+    tickers=[t for t in dict.fromkeys(str(x).upper().strip() for x in tickers) if t]
+    if not tickers: return {},{'status':'UNAVAILABLE','source':'Yahoo Finance 5m batch'}
+    try:
+        data=yf.download(tickers,period=period,interval=interval,group_by='ticker',auto_adjust=True,
+                         threads=True,progress=False)
+        out=_extract(data,tickers)
+        status='CURRENT' if out else 'FAILED'
+        log_event('intraday_monitor_batch',requested=len(tickers),returned=len(out),status=status)
+        return out,{'status':status,'coverage_status':'COMPLETE' if len(out)==len(tickers) else 'PARTIAL',
+                    'source':f'Yahoo Finance {interval} batch'}
+    except Exception as exc:
+        log_exception('intraday_monitor_batch_error',exc,requested=len(tickers),interval=interval)
+        return {},{'status':'FAILED','source':f'Yahoo Finance {interval} batch','error':type(exc).__name__}
+
+
 
 def _live_quote_path(ticker):
     safe=re.sub(r'[^A-Za-z0-9._-]+','_',ticker)

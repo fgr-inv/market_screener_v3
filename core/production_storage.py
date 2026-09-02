@@ -189,6 +189,16 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_agent_outputs_latest
                ON user_agent_outputs(user_id,output_type,created_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS user_agent_event_state (
+                user_id TEXT NOT NULL,
+                event_key TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                last_triggered_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id,event_key)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_agent_event_state_latest
+               ON user_agent_event_state(user_id,last_triggered_at DESC)''',
         ]
         with cloud_connection() as con:
             for stmt in statements:

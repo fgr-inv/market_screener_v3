@@ -24,6 +24,28 @@ if auto and auto.get('payload'):
     st.subheader('Latest automated CIO Brief')
     st.info(ab.get('headline','Automated desk output available'))
     st.caption(f"Background worker · {auto.get('created_at','N/D')} · SHADOW MODE")
+    c1,c2,c3=st.columns(3)
+    market_section=ab.get('market_regime') or {}
+    risk_section=ab.get('principal_risk') or {}
+    c1.metric('Market regime',market_section.get('state','NOT CHECKED'))
+    c2.metric('Principal risk',risk_section.get('state','NOT CHECKED'))
+    c3.metric('Material','YES' if ab.get('material') else 'NO')
+    if market_section.get('summary'): st.caption('Market: '+market_section['summary'])
+    if risk_section.get('summary'): st.caption('Risk: '+risk_section['summary'])
+    if ab.get('material_reasons'):
+        st.warning('Material review: '+' | '.join(ab['material_reasons']))
+    top=ab.get('top_opportunities') or []
+    if top:
+        st.write('**Top opportunities**')
+        st.dataframe(pd.DataFrame(top),use_container_width=True,hide_index=True)
+    decisions=ab.get('decisions_needed') or []
+    if decisions:
+        with st.expander('Decisions needed',expanded=False):
+            st.dataframe(pd.DataFrame(decisions),use_container_width=True,hide_index=True)
+    conflicts=ab.get('avoid_or_conflicting') or []
+    if conflicts:
+        with st.expander('Avoid / conflicting signals',expanded=False):
+            st.dataframe(pd.DataFrame(conflicts),use_container_width=True,hide_index=True)
     aw=ap.get('watchlist') or []
     if aw:
         with st.expander('Automated desk watchlist',expanded=False):
@@ -69,7 +91,7 @@ if run:
         if source is not None and not source.empty and 'Ticker' in source and 'Sector' in source:
             sectors.update({str(r['Ticker']).upper():str(r.get('Sector','Unknown') or 'Unknown') for _,r in source.iterrows()})
         watchlist=build_watchlist(verified,portfolio_result,sectors=sectors,limit=15,market_result=market_result)
-        brief=build_cio_brief(verified)
+        brief=build_cio_brief(verified,watchlist=watchlist)
         append_agent_audit(uid,'watchlist_ranked',{'rows':watchlist,'shadow_mode':True})
         append_agent_audit(uid,'cio_brief',brief)
         st.session_state['_agent_desk_brief']=brief
