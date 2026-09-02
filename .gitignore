@@ -18,3 +18,5 @@ data/agent_event_state/
 data/agent_snapshots/
 data/shadow_validation/
 data/skill_calibration/
+
+data/logs/
