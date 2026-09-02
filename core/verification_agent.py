@@ -8,9 +8,10 @@ def verify_result(result: AgentResult) -> AgentResult:
     statuses=[e.status.value if hasattr(e.status,'value') else str(e.status) for e in result.evidence]
     current=sum(s==DataStatus.CURRENT.value for s in statuses); total=len(statuses)
     failed=any(s==DataStatus.FAILED.value for s in statuses)
+    unavailable=any(s==DataStatus.UNAVAILABLE.value for s in statuses)
     stale=any(s==DataStatus.STALE.value for s in statuses)
     available=current/max(total,1)
-    if failed or total==0: status=VerificationStatus.REJECTED
+    if failed or total==0 or (current==0 and unavailable): status=VerificationStatus.REJECTED
     elif stale: status=VerificationStatus.STALE_DATA
     elif result.contradicting_evidence and available<.8: status=VerificationStatus.CONFLICTING_EVIDENCE
     elif available>=.8: status=VerificationStatus.VERIFIED

@@ -444,3 +444,11 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Adds a Desk Watchlist that ranks verified Technical + Fundamental work and penalizes candidates that worsen current portfolio concentration.
 - CIO materiality now recognizes ELEVATED/HIGH_RISK portfolio states.
 - All new behavior remains SHADOW MODE; there is still no broker/order execution path.
+
+## V11.27 — Market Regime & Sector Agent
+- Adds the sixth V1 desk role: `Market Regime & Sector`.
+- Reuses `latest_macro.json`, `latest_sectors.parquet`, and `latest_meta.json`; desk runs make **no additional FRED/provider calls** for regime analysis.
+- Enforces snapshot freshness: current <= 36h; older snapshots become `STALE` and are blocked by Verification instead of being treated as neutral/current.
+- Reports risk regime, economic regime, momentum, breadth/credit/rates/liquidity evidence, sector leaders/laggards, contradictions, confidence, and alternative explanation.
+- Desk watchlist now includes a deliberately small market/sector context weight (10%); macro context cannot become a standalone trade signal.
+- Shadow mode and approval boundaries remain unchanged: no broker/order execution path.
