@@ -481,3 +481,13 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - The Investment Desk UI now shows recorded decisions, matured/pending observations, hit rate, directional return/alpha and Brier calibration by horizon.
 - Performance stays `NOT_ENOUGH_DATA` until at least 20 matured observations exist for a horizon; missing prices remain `PENDING` or `UNAVAILABLE`, never zero or neutral.
 - V11.30 remains SHADOW MODE. Paper portfolio and Alpaca integration are intentionally out of scope.
+
+## V11.31 — Evidence-Gated Skill Calibration
+- Added a weekly, user-scoped calibration review that consumes only the existing shadow decision/outcome ledger. It makes no market-data or fundamental-provider requests.
+- Results are segmented by agent, signal state, skill version and horizon, preventing old and new skill versions from being blended into one score.
+- Technical signals use 5 trading days as their primary governance horizon; Fundamental/Catalyst and CIO Watchlist signals use 20 days. Other horizons remain descriptive context.
+- Governance requires at least 20 matured SPY-relative observations across five unique tickers. Hit rate includes a descriptive Wilson uncertainty interval, alongside directional alpha and Brier calibration; overlapping or correlated signals remain an explicit effective-sample caveat.
+- Reviews produce `INSUFFICIENT_EVIDENCE`, `RETAIN`, `REVIEW`, or `PAUSE_CANDIDATE`. A pause candidate requires at least 40 observations plus evidence that the hit rate remains below 50% and directional alpha is negative.
+- Weekly snapshots are idempotent, user-scoped and persisted in Postgres with a private local fallback. Failed cloud writes remain retriable.
+- The Investment Desk shows current segment evidence, version comparisons and a human review queue.
+- V11.31 does not rewrite skill files, change thresholds automatically, create paper positions or connect to a broker. Shadow Mode remains mandatory.

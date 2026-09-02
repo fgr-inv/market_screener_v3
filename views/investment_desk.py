@@ -14,6 +14,7 @@ from core.cio_agent import build_cio_brief
 from core.agent_audit import append_agent_audit,load_agent_audit
 from core.desk_store import load_latest_desk_output
 from core.shadow_validation import load_shadow_decisions,load_shadow_outcomes,shadow_validation_summary
+from core.skill_calibration import build_skill_calibration_review,load_latest_skill_calibration_review
 
 hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. The desk reuses central market snapshots and shared price/fundamental caches, reads your saved portfolio automatically, ranks a watchlist, and never sends broker orders.')
@@ -72,6 +73,37 @@ if shadow_decisions:
     with st.expander('Recent recorded decisions',expanded=False):
         st.dataframe(recent[columns],use_container_width=True,hide_index=True)
 st.caption('Forward validation is observational: 1/5/20 trading-day outcomes versus SPY. It never creates a paper or live position.')
+
+calibration=build_skill_calibration_review(shadow_decisions,shadow_outcomes)
+stored_calibration=load_latest_skill_calibration_review(uid)
+st.subheader('Shadow Skill Calibration')
+counts=calibration['recommendation_counts']
+c1,c2,c3,c4=st.columns(4)
+c1.metric('Eligible segments',calibration['eligible_segments'])
+c2.metric('Retain',counts['RETAIN'])
+c3.metric('Review',counts['REVIEW'])
+c4.metric('Pause candidates',counts['PAUSE_CANDIDATE'])
+if calibration['status'] in {'NO_DECISIONS','NOT_ENOUGH_DATA'}:
+    policy=calibration['policy']
+    st.info(f"Calibration: {calibration['status']}. Each agent/state/version needs at least "
+            f"{policy['minimum_sample']} matured outcomes across {policy['minimum_unique_tickers']} tickers at its primary horizon.")
+elif calibration['status']=='REVIEW_REQUIRED':
+    st.warning('One or more skill segments need human review. No signal, threshold, skill file, or trading behavior was changed automatically.')
+primary_rows=[row for row in calibration['segments'] if row['Governance Horizon']=='PRIMARY']
+if primary_rows:
+    columns=['Agent','Signal State','Skill Version','Horizon','Recommendation','Sample','Unique Tickers',
+             'Hit Rate %','Hit Rate 95% Low %','Hit Rate 95% High %','Mean Directional Alpha %','Brier Score','Reason']
+    st.dataframe(pd.DataFrame(primary_rows)[columns],use_container_width=True,hide_index=True)
+if calibration['version_comparisons']:
+    with st.expander('Skill version comparisons',expanded=False):
+        st.dataframe(pd.DataFrame(calibration['version_comparisons']),use_container_width=True,hide_index=True)
+if calibration['proposals']:
+    with st.expander('Human review queue',expanded=True):
+        st.dataframe(pd.DataFrame(calibration['proposals']),use_container_width=True,hide_index=True)
+if stored_calibration:
+    st.caption(f"Latest persisted weekly review: {stored_calibration.get('created_at','N/D')}.")
+st.caption('Governance only: Technical uses 5d; Fundamental/CIO use 20d. Secondary horizons remain context. Correlated signals can reduce effective sample size. Reviews never rewrite skills or place trades.')
+
 pos=load_positions(user_id=uid)
 source=st.session_state.get('scan_results')
 defaults=[] if source is None or source.empty or 'Ticker' not in source else source['Ticker'].dropna().astype(str).head(12).tolist()

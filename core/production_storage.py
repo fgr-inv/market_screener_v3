@@ -241,6 +241,17 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_shadow_outcomes_status
                ON user_shadow_outcomes(user_id,status,horizon_days)''',
+            '''CREATE TABLE IF NOT EXISTS user_skill_calibration_reviews (
+                user_id TEXT NOT NULL,
+                review_key TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                status TEXT NOT NULL,
+                manual_review_required BOOLEAN DEFAULT FALSE,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (user_id,review_key)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_skill_calibration_latest
+               ON user_skill_calibration_reviews(user_id,created_at DESC)''',
         ]
         with cloud_connection() as con:
             for stmt in statements:
