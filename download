@@ -15,3 +15,6 @@ data/investment_theses.csv
 data/trade_journal.csv
 data/notification_settings.json
 data/alert_state.csv
+
+# Agent shared snapshots are runtime/private cache
+data/agent_snapshots/

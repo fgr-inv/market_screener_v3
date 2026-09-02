@@ -429,3 +429,10 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Adds a user-scoped append-only agent audit trail. Audit logs are private and git-ignored.
 - No execution path exists: agents cannot place, modify or cancel trades. Human approval remains mandatory.
 - Phase 1 intentionally reuses the existing technical engine and market-data layer instead of duplicating screener logic.
+
+## V11.25 — Rate-limit-safe Fundamental Agent
+- Adds Fundamental & Catalyst Agent to the Investment Desk shadow pipeline.
+- Central shared fundamental snapshots: one refresh can serve every agent instead of repeated provider calls.
+- 7-day accounting snapshot policy; daily market-sensitive valuation overlay.
+- Explicit CACHE/REFRESH budget decision and provider-status audit metadata.
+- Force refresh is opt-in for earnings/filing events; failures remain explicit and never become neutral data.
