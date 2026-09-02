@@ -452,3 +452,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Reports risk regime, economic regime, momentum, breadth/credit/rates/liquidity evidence, sector leaders/laggards, contradictions, confidence, and alternative explanation.
 - Desk watchlist now includes a deliberately small market/sector context weight (10%); macro context cannot become a standalone trade signal.
 - Shadow mode and approval boundaries remain unchanged: no broker/order execution path.
+
+## V11.28 — Background Investment Desk + Daily CIO Brief
+- Added headless Investment Desk runners so the desk can work without an open Streamlit session.
+- Added a cheap snapshot-only event detector; specialist agents wake only for material candidates.
+- Added scheduled shadow workers via GitHub Actions and a daily pre-market CIO brief.
+- Automated outputs are user-scoped and persisted in Postgres (`user_agent_outputs`) with a local development fallback.
+- Investment Desk UI now surfaces the latest automated CIO brief/watchlist.
+- Background execution remains SHADOW MODE only: there is no broker/order path.
+- Fundamental refreshes continue through the shared V11.25 cache/data-budget layer.

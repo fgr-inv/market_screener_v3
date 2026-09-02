@@ -12,10 +12,22 @@ from core.watchlist_engine import build_watchlist
 from core.verification_agent import verify_result
 from core.cio_agent import build_cio_brief
 from core.agent_audit import append_agent_audit,load_agent_audit
+from core.desk_store import load_latest_desk_output
 
 hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. The desk reuses central market snapshots and shared price/fundamental caches, reads your saved portfolio automatically, ranks a watchlist, and never sends broker orders.')
 user=current_user(); uid=user['user_id']
+
+auto=load_latest_desk_output(uid,'daily_cio_brief') or load_latest_desk_output(uid,'scheduled_review')
+if auto and auto.get('payload'):
+    ap=auto['payload']; ab=ap.get('brief') or {}
+    st.subheader('Latest automated CIO Brief')
+    st.info(ab.get('headline','Automated desk output available'))
+    st.caption(f"Background worker · {auto.get('created_at','N/D')} · SHADOW MODE")
+    aw=ap.get('watchlist') or []
+    if aw:
+        with st.expander('Automated desk watchlist',expanded=False):
+            st.dataframe(pd.DataFrame(aw),use_container_width=True,hide_index=True)
 pos=load_positions(user_id=uid)
 source=st.session_state.get('scan_results')
 defaults=[] if source is None or source.empty or 'Ticker' not in source else source['Ticker'].dropna().astype(str).head(12).tolist()

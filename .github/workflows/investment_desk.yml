@@ -1,0 +1,37 @@
+name: Investment Desk event scan
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 13-21 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: investment-desk-shadow-events
+  cancel-in-progress: false
+
+jobs:
+  desk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Require persistent database
+        run: test -n "${DATABASE_URL}" || (echo "DATABASE_URL is required" && exit 1)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Run cheap event scan and wake specialists only when material
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: python -m scripts.run_investment_desk
