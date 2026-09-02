@@ -136,4 +136,5 @@ def test_v1131_worker_schema_and_ui_remain_non_executing():
     assert all(term not in (workflow+worker).lower() for term in ('alpaca','place_order','broker'))
     assert 'user_skill_calibration_reviews' in schema
     assert 'Human review queue' in view and 'automatic' in view
-    assert 'APP_VERSION = "11.31"' in config
+    version=next(line.split('=',1)[1].strip().strip('"') for line in config.splitlines() if line.startswith('APP_VERSION'))
+    assert tuple(int(part) for part in version.split('.')) >= (11,31)

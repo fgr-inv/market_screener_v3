@@ -10,6 +10,7 @@ from core.production_storage import storage_mode
 from core.shadow_validation import load_shadow_decisions, load_shadow_outcomes
 from core.skill_calibration import (build_skill_calibration_review, load_skill_calibration_review,
                                     save_skill_calibration_review)
+from core.skill_governance import build_paper_readiness_report, load_skill_governance
 
 
 def main():
@@ -26,12 +27,15 @@ def main():
     decisions = load_shadow_decisions(uid)
     outcomes = load_shadow_outcomes(uid)
     review = build_skill_calibration_review(decisions, outcomes, generated_at=now)
+    review['paper_readiness'] = build_paper_readiness_report(
+        decisions, outcomes, review, load_skill_governance(uid), storage_mode(), generated_at=now)
     persistence = save_skill_calibration_review(uid, run_key, review)
     append_agent_audit(uid, 'shadow_skill_calibration_review', {
         'run_key': run_key,
         'status': review['status'],
         'eligible_segments': review['eligible_segments'],
         'proposals': review['proposals'],
+        'paper_readiness_status': review['paper_readiness']['status'],
         'persistence': persistence['status'],
         'shadow_mode': True,
     })

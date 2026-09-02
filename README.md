@@ -491,3 +491,14 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Weekly snapshots are idempotent, user-scoped and persisted in Postgres with a private local fallback. Failed cloud writes remain retriable.
 - The Investment Desk shows current segment evidence, version comparisons and a human review queue.
 - V11.31 does not rewrite skill files, change thresholds automatically, create paper positions or connect to a broker. Shadow Mode remains mandatory.
+
+## V11.32 — Supervised Skill Governance + Paper Readiness Gate
+- Added durable, user-scoped governance records for every `REVIEW` and `PAUSE_CANDIDATE` calibration proposal.
+- A reviewer can defer, explicitly retain the current skill, or request a new revision. These choices are audit records only and never rewrite code or thresholds automatically.
+- `REQUEST_REVISION` remains blocked until a separately released skill version earns new forward evidence. A `PAUSE_CANDIDATE` cannot be cleared by acknowledgement alone.
+- Calibration marks cohorts as `CURRENT` or `HISTORICAL`; only the latest observed skill version can create an active governance proposal, while older versions remain available for comparison.
+- Added an eight-gate Paper Readiness checklist covering persistent storage, 100 shadow decisions, 50 matured 20-day decisions, a 60-day observation window, 10 unique tickers, two calibrated segments, no pause candidates and a resolved review queue.
+- Passing every gate produces only `READY_FOR_PAPER_REVIEW`: it does not enable Paper Mode. A separate human-approved release would still be required.
+- The weekly calibration worker now persists the contemporaneous readiness report without making any new provider request.
+- Investment Desk now includes the supervised governance controls, review history and Paper Readiness checklist.
+- V11.32 remains strictly non-executing Shadow Mode: no paper account, broker connection, order, fill or automatic transition exists.

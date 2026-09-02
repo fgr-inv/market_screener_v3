@@ -252,6 +252,22 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_skill_calibration_latest
                ON user_skill_calibration_reviews(user_id,created_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS user_skill_governance (
+                user_id TEXT NOT NULL,
+                proposal_key TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL,
+                updated_at TIMESTAMP NOT NULL,
+                agent TEXT NOT NULL,
+                signal_state TEXT NOT NULL,
+                skill_version TEXT NOT NULL,
+                recommendation TEXT NOT NULL,
+                resolution TEXT NOT NULL,
+                note TEXT,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (user_id,proposal_key)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_skill_governance_latest
+               ON user_skill_governance(user_id,updated_at DESC)''',
         ]
         with cloud_connection() as con:
             for stmt in statements:

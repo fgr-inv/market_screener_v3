@@ -14,6 +14,7 @@ import json
 import math
 
 from core.production_storage import cloud_available, ensure_production_schema, execute_sql, query_sql
+from core.skill_governance import proposal_key
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,7 +181,19 @@ def build_skill_calibration_review(decisions, outcomes, generated_at=None, min_s
         })
 
     primary_segments = [row for row in segments if row['Governance Horizon'] == 'PRIMARY']
-    actionable = [row for row in primary_segments if row['Recommendation'] in {'RETAIN', 'REVIEW', 'PAUSE_CANDIDATE'}]
+    latest_segments = {}
+    for row in primary_segments:
+        key = (row['Agent'], row['Signal State'])
+        marker = (str(row.get('Last Decision') or ''), row['Skill Version'])
+        previous = latest_segments.get(key)
+        if previous is None or marker > previous[0]:
+            latest_segments[key] = (marker, row)
+    current_primary_segments = [item[1] for item in latest_segments.values()]
+    current_versions = {(row['Agent'], row['Signal State']): row['Skill Version'] for row in current_primary_segments}
+    for row in segments:
+        row['Version Role'] = ('CURRENT' if row['Skill Version'] == current_versions.get((row['Agent'], row['Signal State']))
+                               else 'HISTORICAL')
+    actionable = [row for row in current_primary_segments if row['Recommendation'] in {'RETAIN', 'REVIEW', 'PAUSE_CANDIDATE'}]
     proposals = [{
         'agent': row['Agent'],
         'signal_state': row['Signal State'],
@@ -191,7 +204,9 @@ def build_skill_calibration_review(decisions, outcomes, generated_at=None, min_s
         'reason': row['Reason'],
         'approval_status': 'PENDING_HUMAN_REVIEW',
         'automatic_change_applied': False,
-    } for row in primary_segments if row['Recommendation'] in {'REVIEW', 'PAUSE_CANDIDATE'}]
+    } for row in current_primary_segments if row['Recommendation'] in {'REVIEW', 'PAUSE_CANDIDATE'}]
+    for proposal in proposals:
+        proposal['proposal_key'] = proposal_key(proposal)
 
     comparisons = []
     comparison_groups = {}
@@ -225,7 +240,7 @@ def build_skill_calibration_review(decisions, outcomes, generated_at=None, min_s
             'Delta Brier': delta_brier,
         })
 
-    counts = {name: sum(row['Recommendation'] == name for row in primary_segments)
+    counts = {name: sum(row['Recommendation'] == name for row in current_primary_segments)
               for name in ('INSUFFICIENT_EVIDENCE', 'RETAIN', 'REVIEW', 'PAUSE_CANDIDATE')}
     if not decisions:
         status = 'NO_DECISIONS'
@@ -242,6 +257,7 @@ def build_skill_calibration_review(decisions, outcomes, generated_at=None, min_s
         'decision_count': len(decisions),
         'matured_outcome_count': sum(str(r.get('status') or '').upper() == 'MATURED' for r in _latest_outcomes(outcomes)),
         'primary_segments': len(primary_segments),
+        'current_primary_segments': len(current_primary_segments),
         'eligible_segments': len(actionable),
         'manual_review_required': bool(proposals),
         'recommendation_counts': counts,

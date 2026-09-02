@@ -15,6 +15,9 @@ from core.agent_audit import append_agent_audit,load_agent_audit
 from core.desk_store import load_latest_desk_output
 from core.shadow_validation import load_shadow_decisions,load_shadow_outcomes,shadow_validation_summary
 from core.skill_calibration import build_skill_calibration_review,load_latest_skill_calibration_review
+from core.skill_governance import (build_paper_readiness_report,load_skill_governance,
+                                   save_skill_governance)
+from core.production_storage import storage_mode
 
 hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. The desk reuses central market snapshots and shared price/fundamental caches, reads your saved portfolio automatically, ranks a watchlist, and never sends broker orders.')
@@ -76,6 +79,8 @@ st.caption('Forward validation is observational: 1/5/20 trading-day outcomes ver
 
 calibration=build_skill_calibration_review(shadow_decisions,shadow_outcomes)
 stored_calibration=load_latest_skill_calibration_review(uid)
+governance_records=load_skill_governance(uid)
+governance_by_key={str(row.get('proposal_key')):row for row in governance_records if row.get('proposal_key')}
 st.subheader('Shadow Skill Calibration')
 counts=calibration['recommendation_counts']
 c1,c2,c3,c4=st.columns(4)
@@ -91,7 +96,7 @@ elif calibration['status']=='REVIEW_REQUIRED':
     st.warning('One or more skill segments need human review. No signal, threshold, skill file, or trading behavior was changed automatically.')
 primary_rows=[row for row in calibration['segments'] if row['Governance Horizon']=='PRIMARY']
 if primary_rows:
-    columns=['Agent','Signal State','Skill Version','Horizon','Recommendation','Sample','Unique Tickers',
+    columns=['Agent','Signal State','Skill Version','Version Role','Horizon','Recommendation','Sample','Unique Tickers',
              'Hit Rate %','Hit Rate 95% Low %','Hit Rate 95% High %','Mean Directional Alpha %','Brier Score','Reason']
     st.dataframe(pd.DataFrame(primary_rows)[columns],use_container_width=True,hide_index=True)
 if calibration['version_comparisons']:
@@ -99,10 +104,48 @@ if calibration['version_comparisons']:
         st.dataframe(pd.DataFrame(calibration['version_comparisons']),use_container_width=True,hide_index=True)
 if calibration['proposals']:
     with st.expander('Human review queue',expanded=True):
-        st.dataframe(pd.DataFrame(calibration['proposals']),use_container_width=True,hide_index=True)
+        st.caption('ACKNOWLEDGE_AND_RETAIN records an explicit risk acceptance. REQUEST_REVISION keeps readiness blocked until a new skill version is validated.')
+        for proposal in calibration['proposals']:
+            key=str(proposal['proposal_key']); previous=governance_by_key.get(key,{})
+            st.write(f"**{proposal['agent']} · {proposal['signal_state']} · skill {proposal['skill_version']} · {proposal['recommendation']}**")
+            st.caption(proposal['reason'])
+            options=['DEFER','ACKNOWLEDGE_AND_RETAIN','REQUEST_REVISION']
+            selected=str(previous.get('resolution') or 'DEFER')
+            resolution=st.selectbox('Governance decision',options,index=options.index(selected) if selected in options else 0,key=f'gov_resolution_{key}')
+            note=st.text_input('Review note',value=str(previous.get('note') or ''),key=f'gov_note_{key}')
+            if st.button('Save governance decision',key=f'gov_save_{key}'):
+                saved=save_skill_governance(uid,proposal,resolution,note)
+                append_agent_audit(uid,'skill_governance_decision',{'proposal_key':key,'resolution':resolution,
+                                   'status':saved['status'],'shadow_mode':True,'automatic_change_applied':False})
+                if saved['status']=='CURRENT':
+                    st.success('Governance decision saved. No automatic skill change was applied.')
+                    st.rerun()
+                else:
+                    st.error('The governance decision could not be persisted. It remains retriable.')
+            st.divider()
+if governance_records:
+    with st.expander('Governance history',expanded=False):
+        columns=['updated_at','agent','signal_state','skill_version','recommendation','resolution','note','automatic_change_applied']
+        history=pd.DataFrame(governance_records).sort_values('updated_at',ascending=False)
+        st.dataframe(history[[c for c in columns if c in history]],use_container_width=True,hide_index=True)
 if stored_calibration:
     st.caption(f"Latest persisted weekly review: {stored_calibration.get('created_at','N/D')}.")
 st.caption('Governance only: Technical uses 5d; Fundamental/CIO use 20d. Secondary horizons remain context. Correlated signals can reduce effective sample size. Reviews never rewrite skills or place trades.')
+
+paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
+st.subheader('Paper Readiness Gate')
+c1,c2,c3=st.columns(3)
+c1.metric('Readiness',paper_readiness['status'])
+c2.metric('Gates passed',f"{paper_readiness['passed_gates']}/{paper_readiness['total_gates']}")
+c3.metric('Paper Mode','DISABLED')
+if paper_readiness['status']=='READY_FOR_PAPER_REVIEW':
+    st.success('Evidence gates permit a human architecture review. Paper Mode is still disabled and requires a separate approved release.')
+elif paper_readiness['status']=='BLOCKED_REVIEW':
+    st.warning('Evidence quantity is sufficient, but calibration/governance issues still block Paper Mode review.')
+else:
+    st.info('The desk is still building forward evidence. This is the expected state until every readiness gate passes.')
+st.dataframe(pd.DataFrame(paper_readiness['gates']),use_container_width=True,hide_index=True)
+st.caption(paper_readiness['approval_boundary'])
 
 pos=load_positions(user_id=uid)
 source=st.session_state.get('scan_results')
