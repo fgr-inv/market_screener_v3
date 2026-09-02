@@ -10,7 +10,9 @@ def build_cio_brief(results, max_decisions=5):
     for r in results or []:
         d=r.to_dict() if hasattr(r,'to_dict') else dict(r)
         if d.get('verification_status') in accepted:
-            materiality=float(d.get('confidence') or 0) * (1.0 if d.get('state') in {'SETUP','BROKEN_SETUP'} else .65)
+            state=d.get('state')
+            multiplier=1.0 if state in {'SETUP','BROKEN_SETUP','HIGH_RISK'} else .85 if state=='ELEVATED' else .65
+            materiality=float(d.get('confidence') or 0) * multiplier
             rows.append((materiality,d))
         else: blocked.append(d)
     rows.sort(key=lambda x:x[0],reverse=True)

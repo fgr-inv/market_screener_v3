@@ -436,3 +436,11 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - 7-day accounting snapshot policy; daily market-sensitive valuation overlay.
 - Explicit CACHE/REFRESH budget decision and provider-status audit metadata.
 - Force refresh is opt-in for earnings/filing events; failures remain explicit and never become neutral data.
+
+## V11.26 — Portfolio & Risk Agent + Desk Watchlist
+- Investment Desk now reads the current user's saved portfolio automatically.
+- Adds a deterministic Portfolio & Risk Agent using current market value, position concentration, saved sector exposure, HHI and 126-day pairwise return correlation.
+- Adds portfolio-fit scoring for candidate tickers without consuming fundamental-provider quota.
+- Adds a Desk Watchlist that ranks verified Technical + Fundamental work and penalizes candidates that worsen current portfolio concentration.
+- CIO materiality now recognizes ELEVATED/HIGH_RISK portfolio states.
+- All new behavior remains SHADOW MODE; there is still no broker/order execution path.
