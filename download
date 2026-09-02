@@ -7,8 +7,11 @@ data/market_screener.duckdb
 .streamlit/secrets.toml
 .DS_Store
 
+# User-scoped investment desk audit logs
+data/agent_audit/*.jsonl
+# Private user state (local fallback only)
 data/portfolio_positions.csv
 data/investment_theses.csv
 data/trade_journal.csv
-data/alerts.csv
+data/notification_settings.json
 data/alert_state.csv

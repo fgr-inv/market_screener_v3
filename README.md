@@ -421,3 +421,11 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Alert runner retries failed deliveries instead of falsely marking them as delivered.
 - GitHub Actions no longer commits private alert state to the repository; production alerts require DATABASE_URL + ALERT_WEBHOOK_URL secrets.
 - System Health and Institutional Data Hub are OWNER-only.
+
+## V11.24 — Investment Desk Phase 1
+- Adds a shadow-mode Investment Desk with CIO / Chief of Staff, Technical Signal and Verification agents.
+- Adds explicit data states: CURRENT, STALE, NOT_CHECKED, UNAVAILABLE and FAILED.
+- Agent handoffs preserve evidence, confidence, contradicting evidence, alternative explanations and verification status.
+- Adds a user-scoped append-only agent audit trail. Audit logs are private and git-ignored.
+- No execution path exists: agents cannot place, modify or cancel trades. Human approval remains mandatory.
+- Phase 1 intentionally reuses the existing technical engine and market-data layer instead of duplicating screener logic.

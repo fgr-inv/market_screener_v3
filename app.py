@@ -26,6 +26,7 @@ market=[
 ]
 research=[
     st.Page('views/decision_center.py',title='Decision Center',icon='🧠'),
+    st.Page('views/investment_desk.py',title='Investment Desk',icon='🤖'),
     st.Page('views/technical_screener.py',title='Technical Screener',icon='⚡'),
     st.Page('views/fundamental_screener.py',title='Fundamental Screener',icon='📚'),
     st.Page('views/combined_screener.py',title='Combined Screener',icon='🎯'),
