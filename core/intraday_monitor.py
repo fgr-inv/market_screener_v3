@@ -7,8 +7,9 @@ from __future__ import annotations
 import pandas as pd
 
 
-def select_monitor_tickers(latest,portfolio_tickers=None,max_symbols=25):
+def select_monitor_tickers(latest,portfolio_tickers=None,max_symbols=25,watchlist_tickers=None):
     holdings=list(dict.fromkeys(str(t).upper().strip() for t in (portfolio_tickers or []) if str(t).strip()))
+    watchlist=list(dict.fromkeys(str(t).upper().strip() for t in (watchlist_tickers or []) if str(t).strip()))
     candidates=[]
     if latest is not None and not latest.empty and 'Ticker' in latest.columns:
         x=latest.copy()
@@ -16,7 +17,9 @@ def select_monitor_tickers(latest,portfolio_tickers=None,max_symbols=25):
         opportunity=pd.to_numeric(x.get('Opportunity_Score'),errors='coerce') if 'Opportunity_Score' in x else pd.Series(index=x.index,dtype=float)
         x['_monitor_score']=pd.concat([entry,opportunity],axis=1).max(axis=1,skipna=True).fillna(-1)
         candidates=x.sort_values('_monitor_score',ascending=False)['Ticker'].dropna().astype(str).str.upper().tolist()
-    return list(dict.fromkeys(holdings+candidates))[:int(max_symbols)]
+    # Holdings are always first, followed by the durable desk watchlist. Cached
+    # broad-screener leaders only fill unused monitoring capacity.
+    return list(dict.fromkeys(holdings+watchlist+candidates))[:int(max_symbols)]
 
 
 def _relative_intraday_volume(history):

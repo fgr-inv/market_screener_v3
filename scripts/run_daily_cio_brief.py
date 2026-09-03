@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from core.storage import load_positions,load_latest_snapshot
 from core.desk_runner import run_desk_review
 from core.desk_store import load_desk_output
+from core.opportunity_discovery import load_active_watchlist_tickers
 
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
@@ -19,7 +20,8 @@ def main():
         score='Opportunity_Score' if 'Opportunity_Score' in snap.columns else ('Entry_Score' if 'Entry_Score' in snap.columns else None)
         x=snap.sort_values(score,ascending=False) if score else snap
         candidates=x['Ticker'].dropna().astype(str).str.upper().head(12).tolist()
-    tickers=list(dict.fromkeys(holdings+candidates))[:25]
+    active_watchlist=load_active_watchlist_tickers(uid,limit=20)
+    tickers=list(dict.fromkeys(holdings+active_watchlist+candidates))[:25]
     if not tickers: print('CIO brief skipped: no tickers'); return 0
     run_key=f"daily-{now.date().isoformat()}"
     previous=load_desk_output(uid,'daily_cio_brief',run_key)

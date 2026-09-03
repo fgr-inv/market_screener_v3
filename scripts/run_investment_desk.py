@@ -15,6 +15,7 @@ from core.desk_runner import run_desk_review
 from core.desk_store import load_latest_desk_output,load_desk_output,save_desk_output
 from core.desk_notifications import notify_material_brief
 from core.agent_audit import append_agent_audit
+from core.opportunity_discovery import load_active_watchlist_tickers
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -41,7 +42,8 @@ def main():
     macro=load_json_snapshot('latest_macro'); meta=load_json_snapshot('latest_meta')
     previous_scan=load_latest_desk_output(uid,'event_scan') or {}
     previous_context=((previous_scan.get('payload') or {}).get('market_context') or {})
-    monitor_tickers=select_monitor_tickers(latest,holdings,max_symbols=25)
+    active_watchlist=load_active_watchlist_tickers(uid,limit=30)
+    monitor_tickers=select_monitor_tickers(latest,holdings,max_symbols=40,watchlist_tickers=active_watchlist)
     live_overlay,live_monitor=build_intraday_overlay(latest,monitor_tickers)
     detected=detect_snapshot_events(latest,_previous_snapshot(),holdings,max_events=8)
     if live_monitor.get('status')=='CURRENT':
@@ -49,7 +51,8 @@ def main():
     detected+=detect_market_context_events(macro,meta,previous_context)
     events,suppressed=filter_actionable_events(uid,detected,cooldown_minutes=240,now=now)
     scan_payload={'shadow_mode':True,'detected_events':detected,'actionable_events':events,'suppressed_events':suppressed,
-                  'market_context':market_context(macro,meta),'market_time':now.isoformat()}
+                  'market_context':market_context(macro,meta),'market_time':now.isoformat(),
+                  'active_watchlist':active_watchlist,'monitor_tickers':monitor_tickers}
     scan_payload['live_monitor']=live_monitor
     save_desk_output(uid,'event_scan',scan_payload,run_key=now.strftime('%Y%m%d-%H%M'))
     append_agent_audit(uid,'cheap_event_scan',scan_payload)

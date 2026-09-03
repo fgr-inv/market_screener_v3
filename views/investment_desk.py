@@ -20,8 +20,35 @@ from core.skill_governance import (build_paper_readiness_report,load_skill_gover
 from core.production_storage import storage_mode
 
 hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
-section_note('Research only. The desk reuses central market snapshots and shared price/fundamental caches, reads your saved portfolio automatically, ranks a watchlist, and never sends broker orders.')
+section_note('Research only. A broad daily hunt discovers new candidates, specialists verify only the strongest shortlist, and the background desk monitors portfolio + persistent watchlist every 30 minutes. It never sends broker orders.')
 user=current_user(); uid=user['user_id']
+
+hunt=load_latest_desk_output(uid,'daily_opportunity_hunt')
+if hunt and hunt.get('payload'):
+    hp=hunt['payload']; discovery=hp.get('discovery') or {}
+    verified=discovery.get('verified_opportunities') or []
+    shortlist=discovery.get('candidates') or []
+    monitored=discovery.get('monitor_tickers') or []
+    st.subheader('Daily Opportunity Hunt')
+    st.caption(f"Broad scan → diversified shortlist → Technical + Fundamental + Verification · {hunt.get('created_at','N/D')} · SHADOW MODE")
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Universe screened',discovery.get('universe_rows',0))
+    c2.metric('Deep-review shortlist',len(shortlist))
+    c3.metric('Verified candidates',len(verified))
+    c4.metric('Intraday monitored',len(monitored))
+    status=hp.get('status') or discovery.get('status','N/D')
+    if verified:
+        st.success(f"{len(verified)} candidate(s) passed both specialist and evidence gates. Research ranking only.")
+        st.dataframe(pd.DataFrame(verified),use_container_width=True,hide_index=True)
+    elif status=='BLOCKED_STALE_OR_MISSING_SNAPSHOT':
+        st.error('The hunt was blocked because the broad market snapshot was missing or stale. No stale opportunity was promoted.')
+    else:
+        st.info('No candidate passed every verification gate. The strongest preliminary names remain under observation; none is labeled a verified opportunity.')
+    if shortlist:
+        with st.expander('Diversified discovery shortlist',expanded=False):
+            st.dataframe(pd.DataFrame(shortlist),use_container_width=True,hide_index=True)
+    if monitored:
+        st.caption('Persistent 30-minute watchlist: '+', '.join(monitored))
 
 auto=load_latest_desk_output(uid,'daily_cio_brief') or load_latest_desk_output(uid,'scheduled_review')
 if auto and auto.get('payload'):

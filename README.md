@@ -502,3 +502,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - The weekly calibration worker now persists the contemporaneous readiness report without making any new provider request.
 - Investment Desk now includes the supervised governance controls, review history and Paper Readiness checklist.
 - V11.32 remains strictly non-executing Shadow Mode: no paper account, broker connection, order, fill or automatic transition exists.
+
+## V11.33 — Daily Opportunity Hunt + Persistent Intraday Watchlist
+- The daily snapshot now covers the deduplicated S&P 500, Nasdaq 100 and liquid fallback universe (up to 650 rows) instead of stopping at the first 220 S&P names.
+- A post-close Opportunity Hunt applies cheap technical, risk, confidence, event-risk and diversification gates to the broad snapshot, then sends at most 18 candidates to full Technical + Fundamental + Portfolio + Market + Verification review.
+- A name is labeled `VERIFIED_CANDIDATE` only when both specialists are verified, Technical is `SETUP/WATCH`, Fundamental is `IMPROVING/INTACT`, priority is at least 60 and contradictions remain bounded. No candidate is preferable to a weak candidate.
+- The generated daily watchlist is persisted per user. The 30-minute market-session worker now prioritizes portfolio holdings, then that persistent watchlist, then unused capacity from cached screener leaders, in one bounded batch of at most 40 symbols.
+- The pre-market CIO brief reuses the active daily watchlist. The Investment Desk shows universe size, deep-review shortlist, fully verified candidates and the exact symbols under intraday monitoring.
+- The broad scan runs once per weekday, deep fundamental work is bounded to the shortlist, and event routing still wakes specialists only for material changes. This preserves the shared cache/data-budget policy.
+- V11.33 remains Shadow Mode only. It discovers, verifies, ranks, monitors and alerts; it contains no broker, order, fill, paper-trading or autonomous execution path.

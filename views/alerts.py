@@ -9,10 +9,27 @@ from core.alerts_engine import webhook_status
 from core.notification_settings import get_user_webhook
 from core.access_control import current_user
 from core.ui import hero, section_note
+from core.desk_store import load_latest_desk_output
 
 hero('Alert Center','Monitor de señales en vivo + estado de tus alertas persistentes.','Signal Monitor')
 user=current_user(); uid=user['user_id']
 pos=load_positions(user_id=uid); saved=list_alerts(user_id=uid); channel=webhook_status(get_user_webhook(uid))
+
+hunt=load_latest_desk_output(uid,'daily_opportunity_hunt') or {}
+scan=load_latest_desk_output(uid,'event_scan') or {}
+hunt_payload=hunt.get('payload') or {}; discovery=hunt_payload.get('discovery') or {}
+scan_payload=scan.get('payload') or {}; actionable=scan_payload.get('actionable_events') or []
+st.subheader('Background Desk Activity')
+c1,c2,c3=st.columns(3)
+c1.metric('Verified opportunities',len(discovery.get('verified_opportunities') or []))
+c2.metric('Watchlist monitored',len(discovery.get('monitor_tickers') or []))
+c3.metric('Latest actionable events',len(actionable))
+if actionable:
+    st.warning('Material background events: '+' | '.join(
+        f"{event.get('ticker')}: {', '.join(event.get('reasons') or [])}" for event in actionable[:5]))
+elif hunt_payload:
+    st.info(hunt_payload.get('brief',{}).get('headline','Background opportunity hunt available.'))
+st.caption(f"Opportunity hunt: {hunt.get('created_at','N/D')} · Intraday scan: {scan.get('created_at','N/D')}")
 
 c1,c2,c3=st.columns(3)
 c1.metric('Portfolio positions',len(pos))
@@ -56,4 +73,4 @@ if rows:
 else:
     st.success('No hay señales activas con los criterios seleccionados.')
 st.caption(f"Última evaluación en esta sesión: {st.session_state.get('live_alert_checked',0)} activos con datos válidos.")
-section_note('Alert Center es un monitor manual. Saved Alerts es el sistema persistente que GitHub Actions evalúa automáticamente incluso cuando la web está cerrada.')
+section_note('The live controls on this page are manual. Saved Alerts, Daily Opportunity Hunt and the 30-minute portfolio/watchlist monitor run in GitHub Actions even while the web is closed.')

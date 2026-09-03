@@ -157,4 +157,5 @@ def test_v1132_worker_schema_and_ui_have_no_execution_path():
     assert 'Paper Readiness Gate' in view and "'DISABLED'" in view
     assert 'paper_mode_enabled' in module and 'automatic_transition' in module
     assert all(term not in worker.lower() for term in ('alpaca','place_order','broker'))
-    assert 'APP_VERSION = "11.32"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(int(x) for x in version.split('.')) >= (11,32)

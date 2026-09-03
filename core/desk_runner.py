@@ -18,7 +18,7 @@ def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_
                     agent_plan=None,events=None,run_key=None):
     uid=str(user_id or 'local-user'); tickers=list(dict.fromkeys(str(x).upper().strip() for x in tickers if str(x).strip()))[:max_tickers]
     plan=agent_plan or full_review_plan(tickers); ticker_agents=plan.get('ticker_agents') or {}; global_agents=set(plan.get('global_agents') or [])
-    automated=output_type in {'scheduled_review','daily_cio_brief'} and bool(run_key)
+    automated=output_type in {'scheduled_review','daily_cio_brief','daily_opportunity_hunt'} and bool(run_key)
     pos=load_positions(user_id=uid); position_ticks=[] if pos.empty else pos['ticker'].dropna().astype(str).str.upper().tolist()
     needs_prices='portfolio' in global_agents or any('technical' in agents for agents in ticker_agents.values())
     price_ticks=list(ticker_agents) + (position_ticks if 'portfolio' in global_agents else [])

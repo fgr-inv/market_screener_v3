@@ -16,10 +16,23 @@ from core.audit import append_score_audit
 from core.monitoring import log_event,log_exception,timer
 
 
+def combine_equity_universes(*universes,limit=None):
+    """Combine S&P 500, Nasdaq 100 and liquid fallback rows without duplicates."""
+    frames=[]
+    for universe in universes:
+        if universe is not None and not universe.empty and 'Ticker' in universe.columns:
+            frames.append(universe.copy())
+    if not frames: return pd.DataFrame(columns=['Ticker','Sector'])
+    out=pd.concat(frames,ignore_index=True)
+    out['Ticker']=out['Ticker'].astype(str).str.upper().str.strip()
+    out=out[out['Ticker']!=''].drop_duplicates('Ticker',keep='first')
+    return out.head(int(limit)) if limit is not None else out
+
+
 def build_market_snapshot(scan_limit=220):
     with timer('build_market_snapshot',scan_limit=scan_limit):
         sp=load_universe('S&P 500'); ndx=load_universe('Nasdaq 100'); fb=load_universe('Fallback líquido')
-        scan=sp.head(scan_limit).copy()
+        scan=combine_equity_universes(sp,ndx,fb,limit=scan_limit)
         syms=list(dict.fromkeys(sp['Ticker'].tolist()+ndx['Ticker'].tolist()+fb['Ticker'].tolist()+get_market_symbols()+list(get_sector_etfs().values())+list(get_macro_symbols().values())))
         pm=download_prices(syms,period='2y'); spy=pm.get('SPY')
         bscore,bdf=composite_breadth({'S&P 500':sp,'Nasdaq 100':ndx,'Fallback líquido':fb},pm)
@@ -69,7 +82,9 @@ def build_market_snapshot(scan_limit=220):
             results=attach_scores(results)
 
         meta={
-            'generated_at':datetime.now(timezone.utc).isoformat(),'scan_limit':scan_limit,'symbols_requested':len(syms),
+            'generated_at':datetime.now(timezone.utc).isoformat(),'scan_limit':scan_limit,
+            'equity_universe_rows':len(scan),'universe_policy':'S&P 500 + Nasdaq 100 + liquid fallback, deduplicated',
+            'symbols_requested':len(syms),
             'symbols_downloaded':len(pm),'symbols_scored':len(results),'symbol_failures':len(failed),
             'failure_examples':failed[:25],
         }
