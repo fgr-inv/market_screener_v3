@@ -1,13 +1,23 @@
 {
-  "generated_at": "2026-09-02T22:57:53.405162+00:00",
-  "scan_limit": 220,
+  "generated_at": "2026-09-03T03:10:41.081277+00:00",
+  "scan_limit": 650,
+  "equity_universe_rows": 511,
+  "universe_policy": "S&P 500 + Nasdaq 100 + liquid fallback, deduplicated",
   "symbols_requested": 540,
   "symbols_downloaded": 540,
-  "symbols_scored": 219,
-  "symbol_failures": 1,
+  "symbols_scored": 508,
+  "symbol_failures": 3,
   "failure_examples": [
     [
       "FDXF",
+      "INSUFFICIENT_HISTORY"
+    ],
+    [
+      "HONA",
+      "INSUFFICIENT_HISTORY"
+    ],
+    [
+      "Q",
       "INSUFFICIENT_HISTORY"
     ]
   ]
