@@ -92,6 +92,7 @@ def portfolio_fit_for_candidate(ticker: str, sector: str, portfolio_result: Agen
     """Return a 0..1 fit score without any provider call."""
     if portfolio_result is None or not getattr(portfolio_result,'metadata',None): return .6,'Portfolio context unavailable.'
     weights=portfolio_result.metadata.get('weights',{}) or {}; sectors=portfolio_result.metadata.get('sector_weights',{}) or {}
+    if not weights: return .6,'Portfolio is empty; fit remains neutral until positions are saved.'
     t=str(ticker).upper(); sector=str(sector or 'Unknown')
     if t in weights: return max(.1,1.0-weights[t]*2.5),f'Already held at {weights[t]:.1%} of portfolio.'
     sw=float(sectors.get(sector,0) or 0)

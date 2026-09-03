@@ -251,6 +251,9 @@ def shadow_validation_summary(decisions,outcomes,min_reliable_sample=MIN_RELIABL
     decisions=list(decisions or []); outcomes=list(outcomes or [])
     matured=[r for r in outcomes if r.get('status')=='MATURED']
     pending=[r for r in outcomes if r.get('status')=='PENDING']
+    recorded={(str(r.get('decision_key')),int(r.get('horizon_days') or 0)) for r in outcomes}
+    expected={(str(d.get('decision_key')),horizon) for d in decisions for horizon in HORIZONS if d.get('decision_key')}
+    unevaluated=len(expected-recorded)
     horizons=[]
     for horizon in HORIZONS:
         rows=[r for r in matured if int(r.get('horizon_days') or 0)==horizon]
@@ -269,6 +272,7 @@ def shadow_validation_summary(decisions,outcomes,min_reliable_sample=MIN_RELIABL
             'Brier Score':None if not brier else round(sum(brier)/len(brier),3),
         })
     status='NO_DECISIONS' if not decisions else 'CURRENT' if any(r['Status']=='CURRENT' for r in horizons) else 'NOT_ENOUGH_DATA'
-    return {'status':status,'decisions':len(decisions),'matured_outcomes':len(matured),'pending_outcomes':len(pending),
+    return {'status':status,'decisions':len(decisions),'matured_outcomes':len(matured),
+            'pending_outcomes':len(pending)+unevaluated,'unevaluated_outcomes':unevaluated,
             'minimum_reliable_sample':int(min_reliable_sample),'horizons':horizons,
             'note':'Metrics are descriptive until the minimum sample is reached; no trading conclusion is asserted.'}

@@ -38,7 +38,8 @@ c3.metric('Notification channel',channel['provider'] if channel['configured'] el
 
 portfolio_ticks=pos['ticker'].astype(str).tolist() if not pos.empty else []
 saved_ticks=saved['ticker'].astype(str).tolist() if not saved.empty else []
-default=list(dict.fromkeys(portfolio_ticks+saved_ticks+['BTC-USD','ETH-USD']))
+desk_ticks=[str(t).upper() for t in discovery.get('monitor_tickers') or []]
+default=list(dict.fromkeys(portfolio_ticks+saved_ticks+desk_ticks+['BTC-USD','ETH-USD']))[:40]
 text=st.text_area('Activos a vigilar',','.join(default),height=90)
 threshold=st.slider('Avisar si está a ≤ X% de EMA62/79 (equities)',.5,5.0,2.0,.5)
 ticks=[x.strip().upper() for x in text.replace('\n',',').split(',') if x.strip()]
@@ -46,7 +47,7 @@ ticks=[x.strip().upper() for x in text.replace('\n',',').split(',') if x.strip()
 if not ticks:
     st.info('Agregá activos para evaluar señales.'); st.stop()
 
-if st.button('Actualizar señales',type='primary') or 'live_alert_rows' not in st.session_state:
+if st.button('Actualizar señales',type='primary'):
     pm=download_prices(list(dict.fromkeys(ticks+['SPY'])),period='5y'); spy=pm.get('SPY'); alerts=[]; checked=0
     for t in ticks:
         try:
@@ -67,10 +68,13 @@ if st.button('Actualizar señales',type='primary') or 'live_alert_rows' not in s
             alerts.append({'Ticker':t,'Type':'ERROR','Signals':f'{type(exc).__name__}: no se pudo evaluar'})
     st.session_state['live_alert_rows']=alerts; st.session_state['live_alert_checked']=checked
 
-rows=st.session_state.get('live_alert_rows',[])
+rows=st.session_state.get('live_alert_rows')
 if rows:
     st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+elif rows is None:
+    st.info('La actividad automática ya está cargada. Pulsá “Actualizar señales” solamente si querés ejecutar ahora el análisis manual de estos activos.')
 else:
     st.success('No hay señales activas con los criterios seleccionados.')
-st.caption(f"Última evaluación en esta sesión: {st.session_state.get('live_alert_checked',0)} activos con datos válidos.")
+if rows is not None:
+    st.caption(f"Última evaluación en esta sesión: {st.session_state.get('live_alert_checked',0)} activos con datos válidos.")
 section_note('The live controls on this page are manual. Saved Alerts, Daily Opportunity Hunt and the 30-minute portfolio/watchlist monitor run in GitHub Actions even while the web is closed.')

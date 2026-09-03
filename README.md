@@ -511,3 +511,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - The pre-market CIO brief reuses the active daily watchlist. The Investment Desk shows universe size, deep-review shortlist, fully verified candidates and the exact symbols under intraday monitoring.
 - The broad scan runs once per weekday, deep fundamental work is bounded to the shortlist, and event routing still wakes specialists only for material changes. This preserves the shared cache/data-budget policy.
 - V11.33 remains Shadow Mode only. It discovers, verifies, ranks, monitors and alerts; it contains no broker, order, fill, paper-trading or autonomous execution path.
+
+## V11.34 — Sector-Aware Ranking + Responsive Alert Center
+- Opportunity Hunt now carries each shortlisted company sector into the specialist watchlist, so Portfolio Fit and Market Fit use the correct sector instead of an unclassified fallback.
+- An empty saved portfolio produces a neutral Portfolio Fit rather than an artificial perfect score; once positions exist, actual position and sector concentration determine the fit.
+- Alert Center renders persisted background activity immediately and performs its heavier live-price analysis only when the user presses `Actualizar señales`.
+- The manual Alert Center universe now includes the persistent desk watchlist, after portfolio holdings and saved alerts, with the existing 40-symbol safety bound.
+- Shadow Forward Validation counts decision/horizon pairs not yet processed by the daily evaluator as pending, so newly recorded decisions no longer appear as zero pending observations.
+- Opportunity Hunt idempotency is tied to the snapshot timestamp: repeated runs reuse the same snapshot result, while a newly generated same-day snapshot can be analyzed immediately.
+- V11.34 remains research-only Shadow Mode and contains no broker execution path.

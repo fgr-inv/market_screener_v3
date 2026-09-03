@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import pandas as pd
@@ -27,17 +28,24 @@ def snapshot_age_hours(meta,now=None):
         return None
 
 
+def opportunity_run_key(now,snapshot_meta):
+    """Remain idempotent for one snapshot while allowing a same-day refresh."""
+    generated=str((snapshot_meta or {}).get('generated_at') or 'missing-snapshot')
+    fingerprint=hashlib.sha256(generated.encode('utf-8')).hexdigest()[:12]
+    return f'hunt-{now.date().isoformat()}-{fingerprint}'
+
+
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
     now=datetime.now(ZoneInfo('America/New_York'))
-    run_key=f'hunt-{now.date().isoformat()}'
+    snapshot=load_latest_snapshot('latest_screener'); meta=load_json_snapshot('latest_meta')
+    run_key=opportunity_run_key(now,meta)
     previous=load_desk_output(uid,'daily_opportunity_hunt',run_key)
     if previous and (previous.get('payload') or {}).get('discovery'):
         payload=previous['payload']; notification=notify_material_brief(uid,payload.get('brief') or {},run_key)
         print(f"Opportunity hunt reused | notification={notification.get('status')}")
         return 1 if notification.get('status')=='FAILED' else 0
 
-    snapshot=load_latest_snapshot('latest_screener'); meta=load_json_snapshot('latest_meta')
     age=snapshot_age_hours(meta)
     if snapshot is None or snapshot.empty or age is None or age>36:
         payload={'shadow_mode':True,'status':'BLOCKED_STALE_OR_MISSING_SNAPSHOT','brief':{
@@ -56,6 +64,7 @@ def main():
     discovery=discover_daily_candidates(snapshot,holdings,max_candidates=18,max_per_sector=3,minimum_score=60)
     shortlist=discovery.get('candidates') or []
     tickers=[row['Ticker'] for row in shortlist]
+    candidate_sectors={str(row['Ticker']).upper():str(row.get('Sector') or 'Unknown') for row in shortlist}
     if not tickers:
         payload={'shadow_mode':True,'status':'NO_QUALIFIED_CANDIDATES','tickers':[],'watchlist':[],
                  'brief':{'headline':'No candidate passed today’s evidence gates','material':False,
@@ -68,7 +77,7 @@ def main():
         print(payload['brief']['headline']); return 0
 
     payload=run_desk_review(uid,tickers,force_fundamental=False,output_type='daily_opportunity_hunt',
-                            run_key=run_key)
+                            run_key=run_key,candidate_sectors=candidate_sectors)
     verified=qualify_verified_opportunities(payload.get('watchlist') or [],shortlist,minimum_priority=60)
     ranked=[str(row.get('Ticker')).upper() for row in payload.get('watchlist') or [] if row.get('Ticker')]
     monitor=list(dict.fromkeys(ranked+tickers))[:30]

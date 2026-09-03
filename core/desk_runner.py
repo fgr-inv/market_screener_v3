@@ -15,7 +15,7 @@ from core.agent_router import full_review_plan
 from core.shadow_validation import capture_shadow_decisions
 
 def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_review',max_tickers=25,
-                    agent_plan=None,events=None,run_key=None):
+                    agent_plan=None,events=None,run_key=None,candidate_sectors=None):
     uid=str(user_id or 'local-user'); tickers=list(dict.fromkeys(str(x).upper().strip() for x in tickers if str(x).strip()))[:max_tickers]
     plan=agent_plan or full_review_plan(tickers); ticker_agents=plan.get('ticker_agents') or {}; global_agents=set(plan.get('global_agents') or [])
     automated=output_type in {'scheduled_review','daily_cio_brief','daily_opportunity_hunt'} and bool(run_key)
@@ -48,7 +48,8 @@ def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_
             append_agent_audit(uid,'agent_invoked',{'agent':'fundamental','subject':ticker,'run_key':run_key})
             result=verify_result(analyze_fundamental(ticker,force_refresh=force_fundamental))
             verified.append(result); append_agent_audit(uid,'scheduled_specialist_verified',result.to_dict())
-    sectors={}
+    sectors={str(ticker).upper():str(sector or 'Unknown')
+             for ticker,sector in (candidate_sectors or {}).items()}
     if not pos.empty: sectors.update({str(r['ticker']).upper():str(r.get('sector','Unknown') or 'Unknown') for _,r in pos.iterrows()})
     watchlist=build_watchlist(verified,portfolio,sectors=sectors,limit=15,market_result=market)
     brief=build_cio_brief(verified,watchlist=watchlist,events=events)

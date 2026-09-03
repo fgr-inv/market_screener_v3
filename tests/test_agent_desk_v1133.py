@@ -95,7 +95,8 @@ def test_v1133_workflows_and_ui_remain_research_only():
     intraday=Path('.github/workflows/investment_desk.yml').read_text(encoding='utf-8')
     view=Path('views/investment_desk.py').read_text(encoding='utf-8')
     alert_view=Path('views/alerts.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "11.33"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(map(int,version.split('.'))) >= (11,33)
     assert 'run_desk_review' in worker and 'qualify_verified_opportunities' in worker
     assert "cron: '10 23 * * 1-5'" in workflow
     assert "cron: '*/30 13-21 * * 1-5'" in intraday

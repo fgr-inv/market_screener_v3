@@ -94,6 +94,8 @@ c3.metric('Pending outcomes',shadow_summary['pending_outcomes'])
 c4.metric('Evidence status',shadow_summary['status'])
 if shadow_summary['status'] in {'NO_DECISIONS','NOT_ENOUGH_DATA'}:
     st.info(f"Forward evidence: {shadow_summary['status']}. No performance conclusion until at least {shadow_summary['minimum_reliable_sample']} matured observations per horizon.")
+if shadow_summary.get('unevaluated_outcomes'):
+    st.caption(f"Pending includes {shadow_summary['unevaluated_outcomes']} decision/horizon observations that the daily validation worker has not evaluated yet.")
 horizon_rows=pd.DataFrame(shadow_summary['horizons'])
 if not horizon_rows.empty:
     st.dataframe(horizon_rows,use_container_width=True,hide_index=True)
