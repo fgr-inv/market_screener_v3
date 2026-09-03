@@ -529,3 +529,8 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Portfolio risk, sector/theme concentration, correlation risk, factor exposure, hypothetical stress, historical stress, optimizer current weights and the Investment Desk Portfolio Agent all consume the same normalized allocation model.
 - Dollar market value and dollar P&L/VaR are shown only when actual quantities provide a valid dollar basis; percentage portfolios still receive percentage risk and stress analysis without invented capital values.
 - V11.35 remains research-only Shadow Mode. It does not rebalance, trade or send broker orders.
+
+### V11.35.1 — Portfolio display repair
+- Missing average cost no longer turns the full market value into fictitious unrealized profit; cost basis and P&L show `N/D` when cost coverage is zero and covered-only metrics when coverage is partial.
+- Unknown portfolio sectors can be completed from the local market universe/snapshot with a live metadata fallback, improving sector concentration and Portfolio Fit.
+- Existing quantity positions can be converted in one click to their current calculated percentage weights without re-entering the portfolio.

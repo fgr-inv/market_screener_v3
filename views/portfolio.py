@@ -5,8 +5,9 @@ import streamlit as st
 from core.market_data import download_prices, classify_symbol
 from core.indicators import enrich_indicators
 from core.asset_models import analyze_asset
-from core.storage import load_positions, load_theses, upsert_thesis, delete_thesis
+from core.storage import load_positions, load_theses, upsert_position, upsert_thesis, delete_thesis
 from core.portfolio_positions import resolve_position_allocations
+from core.portfolio_metadata import infer_position_sectors, sector_is_missing
 from core.access_control import current_user
 from core.ui import hero, section_note
 
@@ -32,18 +33,58 @@ with positions_tab:
             st.error(f"Los porcentajes cargados suman {allocation['allocation_total_pct']:.1f}%. Deben sumar como máximo 100%.")
             st.dataframe(out,use_container_width=True,hide_index=True)
         else:
+            unknown_count=int(pos['sector'].apply(sector_is_missing).sum()) if 'sector' in pos else len(pos)
+            if unknown_count:
+                st.warning(f'{unknown_count} posiciones no tienen sector. Esto distorsiona Portfolio Fit y la concentración sectorial.')
+                if st.button('Completar sectores automáticamente',type='primary'):
+                    with st.spinner('Clasificando posiciones...'):
+                        inferred=infer_position_sectors(pos,live_fallback=True)
+                        for _,saved in pos.iterrows():
+                            ticker=str(saved['ticker']).upper()
+                            if ticker not in inferred: continue
+                            allocation_pct=None if pd.isna(saved.get('allocation_pct')) else float(saved.get('allocation_pct'))
+                            upsert_position(ticker,float(saved.get('quantity',0) or 0),float(saved.get('avg_cost',0) or 0),
+                                            inferred[ticker],str(saved.get('note','') or ''),user_id=uid,allocation_pct=allocation_pct)
+                    if inferred:
+                        st.success(f'Se actualizaron {len(inferred)} sectores.'); st.rerun()
+                    else: st.error('No se pudo clasificar ninguna posición con las fuentes disponibles.')
             c1,c2,c3,c4=st.columns(4)
+            coverage_note=None
             if allocation['basis']=='QUANTITY':
-                total=float(allocation['dollar_total']); invested=float((out['Quantity']*out['Avg Cost']).sum()); pnl=total-invested
+                total=float(allocation['dollar_total'])
+                covered=(out['Quantity']>0)&(out['Avg Cost']>0)&out['Market Value'].notna()
+                covered_value=float(out.loc[covered,'Market Value'].sum())
+                invested=float((out.loc[covered,'Quantity']*out.loc[covered,'Avg Cost']).sum())
+                pnl=covered_value-invested
+                coverage=covered_value/total*100 if total>0 else 0
                 c1.metric('Market Value',f'${total:,.0f}')
-                c2.metric('Cost Basis',f'${invested:,.0f}')
-                c3.metric('Unrealized P&L',f'${pnl:,.0f}',delta=f'{(total/invested-1)*100:+.1f}%' if invested>0 else None)
+                if coverage>=99.999:
+                    c2.metric('Cost Basis',f'${invested:,.0f}')
+                    c3.metric('Unrealized P&L',f'${pnl:,.0f}',delta=f'{(covered_value/invested-1)*100:+.1f}%' if invested>0 else None)
+                elif coverage>0:
+                    c2.metric('Covered Cost Basis',f'${invested:,.0f}')
+                    c3.metric('Covered P&L',f'${pnl:,.0f}',delta=f'{(covered_value/invested-1)*100:+.1f}%' if invested>0 else None)
+                    coverage_note=f'Costo conocido para {coverage:.1f}% del valor de la cartera; el P&L se calcula solamente sobre esa parte.'
+                else:
+                    c2.metric('Cost Basis','N/D')
+                    c3.metric('Unrealized P&L','N/D')
+                    coverage_note='No hay costos promedio cargados. Se omite el P&L para no tratar el valor de mercado como ganancia.'
             else:
                 c1.metric('Allocated',f"{allocation['allocation_total_pct']:.1f}%")
                 c2.metric('Cash / unassigned',f"{allocation['cash_pct']:.1f}%")
                 c3.metric('Input mode',allocation['basis'])
             c4.metric('Positions',len(out))
+            if coverage_note: st.caption(coverage_note)
             st.dataframe(out.sort_values('Weight %',ascending=False),use_container_width=True,hide_index=True)
+            if allocation['basis']=='QUANTITY':
+                st.caption('Podés conservar cantidades o guardar estos pesos actuales como porcentajes para que el análisis no dependa del capital total.')
+                if st.button('Convertir pesos actuales a porcentajes'):
+                    for _,row in out.iterrows():
+                        saved=pos[pos['ticker'].astype(str).str.upper()==str(row['Ticker']).upper()].iloc[0]
+                        upsert_position(row['Ticker'],float(saved.get('quantity',0) or 0),float(saved.get('avg_cost',0) or 0),
+                                        str(saved.get('sector','Unknown') or 'Unknown'),str(saved.get('note','') or ''),
+                                        user_id=uid,allocation_pct=float(row['Weight %']))
+                    st.success('Los pesos actuales quedaron guardados como porcentajes.'); st.rerun()
 
 with watch:
     saved_ticks=pos['ticker'].astype(str).tolist() if not pos.empty else []

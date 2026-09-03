@@ -109,5 +109,6 @@ def test_existing_quantity_database_migrates_without_data_loss(tmp_path,monkeypa
 def test_version_and_schema_are_current():
     config=open('core/config.py',encoding='utf-8').read()
     production=open('core/production_storage.py',encoding='utf-8').read()
-    assert 'APP_VERSION = "11.35"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(map(int,version.split('.'))) >= (11,35)
     assert 'allocation_pct DOUBLE PRECISION' in production
