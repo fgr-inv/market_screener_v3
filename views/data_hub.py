@@ -14,12 +14,12 @@ if user.get('role')!='OWNER':
     st.stop()
 
 st.subheader('Provider capabilities')
-st.dataframe(provider_capabilities(),use_container_width=True,hide_index=True)
+st.dataframe(provider_capabilities(),width='stretch',hide_index=True)
 
 st.subheader('Point-in-time datasets')
 section_note('Sin estos históricos, revisiones/short/options/backtests pueden tener survivorship o look-ahead bias.')
 contracts=premium_data_contracts()
-st.dataframe(pd.DataFrame([{'File':k,'Required columns':', '.join(v)} for k,v in contracts.items()]),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame([{'File':k,'Required columns':', '.join(v)} for k,v in contracts.items()]),width='stretch',hide_index=True)
 
 st.write(point_in_time_status('SP500')['note'])
 

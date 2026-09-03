@@ -11,7 +11,7 @@ st.subheader('CSV import')
 f=st.file_uploader('Broker positions CSV',type=['csv'])
 if f is not None:
     try:
-        df=normalize_positions_csv(f); st.dataframe(df,use_container_width=True,hide_index=True)
+        df=normalize_positions_csv(f); st.dataframe(df,width='stretch',hide_index=True)
         replace_zero=st.checkbox('Importar también posiciones con cantidad 0',value=False)
         if st.button('Importar al portfolio',type='primary'):
             imported=0
@@ -29,7 +29,7 @@ else:
         df,msg=alpaca_positions()
         if len(df):
             st.session_state['alpaca_positions_preview']=df
-            st.dataframe(df,use_container_width=True,hide_index=True)
+            st.dataframe(df,width='stretch',hide_index=True)
         else: st.warning(msg)
     preview=st.session_state.get('alpaca_positions_preview')
     if preview is not None and len(preview):

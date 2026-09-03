@@ -3,10 +3,30 @@ from __future__ import annotations
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+import pandas as pd
 from core.storage import load_positions,load_latest_snapshot
 from core.desk_runner import run_desk_review
-from core.desk_store import load_desk_output
+from core.desk_store import load_desk_output,load_latest_desk_output
+from core.agent_router import full_review_plan
 from core.opportunity_discovery import load_active_watchlist_tickers
+from core.news_catalyst_agent import catalyst_story_event
+
+def _recent_news_context(user_id,now,max_age_hours=30):
+    record=load_latest_desk_output(user_id,'news_catalyst_scan') or {}; payload=record.get('payload') or {}
+    try:
+        created=pd.Timestamp(record.get('created_at'))
+        if created.tzinfo is None: created=created.tz_localize('UTC')
+        current=pd.Timestamp(now)
+        if current.tzinfo is None: current=current.tz_localize('America/New_York')
+        if (current.tz_convert('UTC')-created.tz_convert('UTC')).total_seconds()/3600>max_age_hours: return [],{}
+    except Exception: return [],{}
+    material_stories=[row for row in payload.get('stories') or [] if row.get('material')]
+    events=[catalyst_story_event(row) for row in material_stories]
+    grouped={}
+    for event in events:
+        ticker=str(event.get('ticker','')).upper(); story=((event.get('metrics') or {}).get('story') or {})
+        if ticker and story: grouped.setdefault(ticker,[]).append(story)
+    return events,grouped
 
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
@@ -27,7 +47,12 @@ def main():
     previous=load_desk_output(uid,'daily_cio_brief',run_key)
     if previous and previous.get('payload'):
         print('CIO brief skipped: already generated for this market date'); return 0
-    out=run_desk_review(uid,tickers,False,'daily_cio_brief',run_key=run_key)
+    events,news_by_ticker=_recent_news_context(uid,now)
+    plan=full_review_plan(tickers)
+    for ticker in news_by_ticker:
+        if ticker in plan['ticker_agents'] and 'news' not in plan['ticker_agents'][ticker]: plan['ticker_agents'][ticker].append('news')
+    out=run_desk_review(uid,tickers,False,'daily_cio_brief',run_key=run_key,agent_plan=plan,
+                        events=events,news_by_ticker=news_by_ticker)
     print(out['brief']['headline']); return 0
 
 if __name__=='__main__': raise SystemExit(main())

@@ -4,6 +4,9 @@ from __future__ import annotations
 TECHNICAL_EVENTS={'strong_candidate','abnormal_volume','large_price_move','technical_score_change','technical_state_change'}
 FUNDAMENTAL_EVENTS={'fundamental_change','fundamental_event'}
 MARKET_EVENTS={'market_regime_change','snapshot_stale','snapshot_status_unknown'}
+NEWS_EVENTS={'news_catalyst','sec_filing','primary_source'}
+FUNDAMENTAL_NEWS_EVENTS={'news_earnings','news_guidance','news_m&a','news_m&a_or_agreement',
+                         'news_regulatory_legal','news_capital_structure','sec_filing'}
 
 
 def route_events(events):
@@ -14,6 +17,8 @@ def route_events(events):
         if types & TECHNICAL_EVENTS: agents.add('technical')
         if types & FUNDAMENTAL_EVENTS: agents.add('fundamental')
         if types & MARKET_EVENTS: event_globals.add('market')
+        if types & NEWS_EVENTS or any(event_type.startswith('news_') for event_type in types): agents.add('news')
+        if types & FUNDAMENTAL_NEWS_EVENTS and int(event.get('severity') or 0)>=4: agents.add('fundamental')
         move=abs(float((event.get('metrics') or {}).get('price_move_pct') or 0))
         if 'large_price_move' in types and move>=7: agents.add('fundamental')
         if event.get('portfolio') and agents: event_globals.add('portfolio')

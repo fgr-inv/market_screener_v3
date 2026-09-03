@@ -1,6 +1,6 @@
 
 APP_NAME = "Market Screener Pro"
-APP_VERSION = "11.35.1"
+APP_VERSION = "11.36"
 
 SECTOR_ETFS = {
     "Technology":"XLK","Financials":"XLF","Health Care":"XLV","Industrials":"XLI",

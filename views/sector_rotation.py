@@ -24,5 +24,5 @@ for sector,etf in get_sector_etfs().items():
         st.warning(f"{sector}: {e}")
 df=pd.DataFrame(rows).sort_values(["Overall","Strength"],ascending=False)
 st.subheader("Ranking"); section_note("Overall = 45% sector strength + 25% entry quality + 30% macro fit.")
-st.dataframe(df,use_container_width=True,hide_index=True)
+st.dataframe(df,width='stretch',hide_index=True)
 st.markdown("- **Strength alto + Entry bajo** → líder, pero extendido.\n- **Strength alto + Entry alto** → sector fuerte y comprable.\n- **Overall** prioriza análisis; no es señal automática.")

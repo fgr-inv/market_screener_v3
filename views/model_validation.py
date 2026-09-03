@@ -25,7 +25,7 @@ if st.button('Run validation',type='primary'):
         st.error('No data'); st.stop()
     ev=backtest_symbol(ticker,raw,spy,step=step,entry_min=entry_min,trend_min=trend_min)
     summary,stats=summarize_backtest(ev)
-    st.subheader('Event Study'); st.dataframe(summary,use_container_width=True,hide_index=True)
+    st.subheader('Event Study'); st.dataframe(summary,width='stretch',hide_index=True)
     if not ev.empty:
         wf=walk_forward_summary(ev,return_col='20d_Alpha')
         if wf:
@@ -33,10 +33,10 @@ if st.button('Run validation',type='primary'):
             for c,(k,v) in zip(cols,wf.items()): c.metric(k,f'{v:.2f}' if isinstance(v,float) else v)
         boot=bootstrap_edge(ev.get('20d_Alpha',pd.Series(dtype=float)))
         if boot:
-            st.subheader('Bootstrap 20d Alpha'); st.dataframe(pd.DataFrame([boot]),use_container_width=True,hide_index=True)
+            st.subheader('Bootstrap 20d Alpha'); st.dataframe(pd.DataFrame([boot]),width='stretch',hide_index=True)
         cal=calibrate_score_buckets(ev,'Entry_Score','20d_Alpha')
         if not cal.empty:
-            st.subheader('Score Calibration'); st.dataframe(cal,use_container_width=True,hide_index=True)
+            st.subheader('Score Calibration'); st.dataframe(cal,width='stretch',hide_index=True)
         with st.expander('Raw events'):
-            st.dataframe(ev,use_container_width=True,hide_index=True)
+            st.dataframe(ev,width='stretch',hide_index=True)
 section_note('Este backtest técnico evita aplicar fundamentales actuales retroactivamente. No uses fundamentals/revisions históricos sin datasets point-in-time; si faltan constituyentes históricos, los backtests de universo pueden sufrir survivorship bias.')

@@ -34,7 +34,7 @@ else:
     shrink=st.slider('Covariance shrinkage',0.0,0.9,0.35,0.05,key='sharpe_shrink')
     out=max_sharpe_weights(tickers,pm,max_weight=maxw,risk_free=rf,shrink=shrink)
 
-st.dataframe(out,use_container_width=True,hide_index=True)
+st.dataframe(out,width='stretch',hide_index=True)
 if not out.empty and 'Ticker' in out and 'Weight %' in out:
     st.bar_chart(out.set_index('Ticker')['Weight %'])
 section_note('Expected-return optimization is noisy. Use constrained solutions, shrinkage and turnover limits; compare with risk-parity instead of trusting one optimizer.')

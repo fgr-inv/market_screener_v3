@@ -19,8 +19,8 @@ from core.skill_governance import (build_paper_readiness_report,load_skill_gover
                                    save_skill_governance)
 from core.production_storage import storage_mode
 
-hero('Investment Desk','CIO + Market Regime/Sector + Technical + Fundamental + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
-section_note('Research only. A broad daily hunt discovers new candidates, specialists verify only the strongest shortlist, and the background desk monitors portfolio + persistent watchlist every 30 minutes. It never sends broker orders.')
+hero('Investment Desk','CIO + Market/Sector + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
+section_note('Research only. A broad daily hunt discovers candidates, the news agent monitors portfolio + persistent watchlist, and specialists wake only for relevant events. It never sends broker orders.')
 user=current_user(); uid=user['user_id']
 
 hunt=load_latest_desk_output(uid,'daily_opportunity_hunt')
@@ -39,16 +39,43 @@ if hunt and hunt.get('payload'):
     status=hp.get('status') or discovery.get('status','N/D')
     if verified:
         st.success(f"{len(verified)} candidate(s) passed both specialist and evidence gates. Research ranking only.")
-        st.dataframe(pd.DataFrame(verified),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame(verified),width='stretch',hide_index=True)
     elif status=='BLOCKED_STALE_OR_MISSING_SNAPSHOT':
         st.error('The hunt was blocked because the broad market snapshot was missing or stale. No stale opportunity was promoted.')
     else:
         st.info('No candidate passed every verification gate. The strongest preliminary names remain under observation; none is labeled a verified opportunity.')
     if shortlist:
         with st.expander('Diversified discovery shortlist',expanded=False):
-            st.dataframe(pd.DataFrame(shortlist),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(shortlist),width='stretch',hide_index=True)
     if monitored:
         st.caption('Persistent 30-minute watchlist: '+', '.join(monitored))
+
+news_scan=load_latest_desk_output(uid,'news_catalyst_scan')
+if news_scan and news_scan.get('payload'):
+    npayload=news_scan['payload']; stories=npayload.get('stories') or []; actionable_news=npayload.get('actionable_events') or []
+    material_news=npayload.get('material_events') or [event for event in actionable_news if int(event.get('severity') or 0)>=4]
+    provider_rows=(npayload.get('provider_status') or {}).get('providers') or []
+    st.subheader('News & Catalyst Intelligence')
+    st.caption(f"Portfolio + persistent watchlist · {news_scan.get('created_at','N/D')} · SHADOW MODE")
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Tickers monitored',len(npayload.get('monitored_tickers') or []))
+    c2.metric('Fresh stories',len(stories))
+    c3.metric('Material events',len(material_news))
+    c4.metric('SEC filings',sum(row.get('source_type')=='SEC_FILING' for row in stories))
+    if actionable_news:
+        if material_news: st.warning('New material catalysts require review; source and thesis impact are shown below.')
+        else: st.info('A lower-severity portfolio catalyst was reviewed; it did not meet the material-alert threshold.')
+        rows=[]
+        for event in actionable_news:
+            story=((event.get('metrics') or {}).get('story') or {})
+            rows.append({'Ticker':event.get('ticker'),'Published':story.get('published_at'),'Category':story.get('category'),
+                         'Direction':story.get('direction'),'Severity':story.get('severity'),'Thesis Impact':story.get('thesis_impact'),
+                         'Primary Source':story.get('primary_source'),'Title':story.get('title'),'Publisher':story.get('publisher'),'URL':story.get('url')})
+        st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
+    else:
+        st.info('No new material catalyst was found in the latest automated scan.')
+    with st.expander('Provider health',expanded=False):
+        st.dataframe(pd.DataFrame(provider_rows),width='stretch',hide_index=True)
 
 auto=load_latest_desk_output(uid,'daily_cio_brief') or load_latest_desk_output(uid,'scheduled_review')
 if auto and auto.get('payload'):
@@ -69,19 +96,23 @@ if auto and auto.get('payload'):
     top=ab.get('top_opportunities') or []
     if top:
         st.write('**Top opportunities**')
-        st.dataframe(pd.DataFrame(top),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame(top),width='stretch',hide_index=True)
     decisions=ab.get('decisions_needed') or []
     if decisions:
         with st.expander('Decisions needed',expanded=False):
-            st.dataframe(pd.DataFrame(decisions),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(decisions),width='stretch',hide_index=True)
     conflicts=ab.get('avoid_or_conflicting') or []
     if conflicts:
         with st.expander('Avoid / conflicting signals',expanded=False):
-            st.dataframe(pd.DataFrame(conflicts),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(conflicts),width='stretch',hide_index=True)
     aw=ap.get('watchlist') or []
     if aw:
         with st.expander('Automated desk watchlist',expanded=False):
-            st.dataframe(pd.DataFrame(aw),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(aw),width='stretch',hide_index=True)
+    news_items=ab.get('news_and_catalysts') or []
+    if news_items:
+        with st.expander('News and catalyst conclusions',expanded=True):
+            st.dataframe(pd.DataFrame(news_items),width='stretch',hide_index=True)
 
 shadow_decisions=load_shadow_decisions(uid)
 shadow_outcomes=load_shadow_outcomes(uid)
@@ -98,12 +129,12 @@ if shadow_summary.get('unevaluated_outcomes'):
     st.caption(f"Pending includes {shadow_summary['unevaluated_outcomes']} decision/horizon observations that the daily validation worker has not evaluated yet.")
 horizon_rows=pd.DataFrame(shadow_summary['horizons'])
 if not horizon_rows.empty:
-    st.dataframe(horizon_rows,use_container_width=True,hide_index=True)
+    st.dataframe(horizon_rows,width='stretch',hide_index=True)
 if shadow_decisions:
     recent=pd.DataFrame(shadow_decisions).sort_values('decision_at',ascending=False).head(20)
     columns=[c for c in ['decision_at','ticker','source_agent','signal_state','expected_direction','confidence','verification_status','baseline_price','baseline_status'] if c in recent]
     with st.expander('Recent recorded decisions',expanded=False):
-        st.dataframe(recent[columns],use_container_width=True,hide_index=True)
+        st.dataframe(recent[columns],width='stretch',hide_index=True)
 st.caption('Forward validation is observational: 1/5/20 trading-day outcomes versus SPY. It never creates a paper or live position.')
 
 calibration=build_skill_calibration_review(shadow_decisions,shadow_outcomes)
@@ -127,10 +158,10 @@ primary_rows=[row for row in calibration['segments'] if row['Governance Horizon'
 if primary_rows:
     columns=['Agent','Signal State','Skill Version','Version Role','Horizon','Recommendation','Sample','Unique Tickers',
              'Hit Rate %','Hit Rate 95% Low %','Hit Rate 95% High %','Mean Directional Alpha %','Brier Score','Reason']
-    st.dataframe(pd.DataFrame(primary_rows)[columns],use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame(primary_rows)[columns],width='stretch',hide_index=True)
 if calibration['version_comparisons']:
     with st.expander('Skill version comparisons',expanded=False):
-        st.dataframe(pd.DataFrame(calibration['version_comparisons']),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame(calibration['version_comparisons']),width='stretch',hide_index=True)
 if calibration['proposals']:
     with st.expander('Human review queue',expanded=True):
         st.caption('ACKNOWLEDGE_AND_RETAIN records an explicit risk acceptance. REQUEST_REVISION keeps readiness blocked until a new skill version is validated.')
@@ -156,10 +187,10 @@ if governance_records:
     with st.expander('Governance history',expanded=False):
         columns=['updated_at','agent','signal_state','skill_version','recommendation','resolution','note','automatic_change_applied']
         history=pd.DataFrame(governance_records).sort_values('updated_at',ascending=False)
-        st.dataframe(history[[c for c in columns if c in history]],use_container_width=True,hide_index=True)
+        st.dataframe(history[[c for c in columns if c in history]],width='stretch',hide_index=True)
 if stored_calibration:
     st.caption(f"Latest persisted weekly review: {stored_calibration.get('created_at','N/D')}.")
-st.caption('Governance only: Technical uses 5d; Fundamental/CIO use 20d. Secondary horizons remain context. Correlated signals can reduce effective sample size. Reviews never rewrite skills or place trades.')
+st.caption('Governance only: Technical/News use 5d; Fundamental/CIO use 20d. Secondary horizons remain context. Correlated signals can reduce effective sample size. Reviews never rewrite skills or place trades.')
 
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
 st.subheader('Paper Readiness Gate')
@@ -173,7 +204,7 @@ elif paper_readiness['status']=='BLOCKED_REVIEW':
     st.warning('Evidence quantity is sufficient, but calibration/governance issues still block Paper Mode review.')
 else:
     st.info('The desk is still building forward evidence. This is the expected state until every readiness gate passes.')
-st.dataframe(pd.DataFrame(paper_readiness['gates']),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame(paper_readiness['gates']),width='stretch',hide_index=True)
 st.caption(paper_readiness['approval_boundary'])
 
 pos=load_positions(user_id=uid)
@@ -261,7 +292,7 @@ if portfolio_view:
 watchlist=st.session_state.get('_agent_watchlist',[])
 if watchlist:
     st.subheader('Desk Watchlist')
-    st.dataframe(pd.DataFrame(watchlist)[['Rank','Ticker','Priority Score','Technical','Fundamental','Portfolio Fit','Market Fit','Verified Specialists','Contradictions','Portfolio Note']],use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame(watchlist)[['Rank','Ticker','Priority Score','Technical','Fundamental','Portfolio Fit','Market Fit','Verified Specialists','Contradictions','Portfolio Note']],width='stretch',hide_index=True)
     st.caption('Priority combines verified specialist evidence with portfolio fit and a small market/sector context weight. It is a research ranking, not a buy list.')
 
 brief=st.session_state.get('_agent_desk_brief')
@@ -270,21 +301,21 @@ if brief:
     budget_rows=st.session_state.get('_agent_budget_rows',[])
     if budget_rows:
         with st.expander('Fundamental data budget',expanded=False):
-            st.dataframe(pd.DataFrame(budget_rows),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(budget_rows),width='stretch',hide_index=True)
             st.caption('CACHE = zero full fundamental provider refresh for that ticker. REFRESH = the shared snapshot was absent/stale or you forced it.')
     for d in brief['decisions']:
         with st.expander(f"{d['subject']} · {d['agent']} · {d['state']} · confidence {d['confidence']:.0%}",expanded=True):
             st.write(d['summary']); st.caption(f"Verification: {d['verification_status']}")
             ev=pd.DataFrame(d.get('evidence',[]))
-            if not ev.empty: st.dataframe(ev[['claim','value','source','observed_at','status','note']],use_container_width=True,hide_index=True)
+            if not ev.empty: st.dataframe(ev[['claim','value','source','observed_at','status','note']],width='stretch',hide_index=True)
             if d.get('contradicting_evidence'): st.warning('Contradicting evidence: '+' | '.join(d['contradicting_evidence']))
             st.caption('Alternative explanation: '+(d.get('alternative_explanation') or 'N/D'))
     if brief['blocked_or_low_trust']:
         st.subheader('Blocked / low-trust')
-        st.dataframe(pd.DataFrame([{'Ticker':x.get('subject'),'Agent':x.get('agent'),'State':x.get('state'),'Verification':x.get('verification_status'),'Confidence':x.get('confidence')} for x in brief['blocked_or_low_trust']]),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame([{'Ticker':x.get('subject'),'Agent':x.get('agent'),'State':x.get('state'),'Verification':x.get('verification_status'),'Confidence':x.get('confidence')} for x in brief['blocked_or_low_trust']]),width='stretch',hide_index=True)
 
 st.subheader('Audit trail')
 audit=load_agent_audit(uid,100)
 if audit.empty: st.caption('No agent runs logged yet.')
-else: st.dataframe(audit[['ts','event_type']],use_container_width=True,hide_index=True)
+else: st.dataframe(audit[['ts','event_type']],width='stretch',hide_index=True)
 st.caption('SHADOW MODE: analysis → portfolio context → verification → CIO → human. No execution path exists.')

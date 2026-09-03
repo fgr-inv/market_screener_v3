@@ -22,13 +22,13 @@ for c in ['technical','trend','entry','opportunity','confidence','rs_percentile'
 
 st.subheader('Largest score improvements')
 if 'Delta opportunity' in merged:
-    st.dataframe(merged.sort_values('Delta opportunity',ascending=False)[['ticker','opportunity_prev','opportunity_now','Delta opportunity','action_now']].head(20),use_container_width=True,hide_index=True)
+    st.dataframe(merged.sort_values('Delta opportunity',ascending=False)[['ticker','opportunity_prev','opportunity_now','Delta opportunity','action_now']].head(20),width='stretch',hide_index=True)
 else:
-    st.dataframe(merged.sort_values('Delta entry',ascending=False)[['ticker','entry_prev','entry_now','Delta entry','action_now']].head(20),use_container_width=True,hide_index=True)
+    st.dataframe(merged.sort_values('Delta entry',ascending=False)[['ticker','entry_prev','entry_now','Delta entry','action_now']].head(20),width='stretch',hide_index=True)
 
 st.subheader('Largest deteriorations')
 key='Delta opportunity' if 'Delta opportunity' in merged else 'Delta entry'
-st.dataframe(merged.sort_values(key)[['ticker',key,'action_now']].head(20),use_container_width=True,hide_index=True)
+st.dataframe(merged.sort_values(key)[['ticker',key,'action_now']].head(20),width='stretch',hide_index=True)
 
 macro=load_json_snapshot('latest_macro')
 if macro:

@@ -30,5 +30,5 @@ portfolio_value=summary.get('Portfolio Value'); estimated_pnl=summary.get('Estim
 a.metric('Portfolio Value','N/D' if portfolio_value is None or pd.isna(portfolio_value) else f"${portfolio_value:,.0f}")
 b.metric('Estimated P&L','N/D' if estimated_pnl is None or pd.isna(estimated_pnl) else f"${estimated_pnl:,.0f}")
 c.metric('Estimated Impact','N/D' if impact is None or pd.isna(impact) else f"{impact:+.1f}%")
-st.dataframe(detail,use_container_width=True,hide_index=True)
+st.dataframe(detail,width='stretch',hide_index=True)
 st.warning('Stress results are sensitivity estimates. Correlations, liquidity and gaps can worsen materially during a real crisis.')

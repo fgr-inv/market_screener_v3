@@ -1,0 +1,39 @@
+name: News and catalyst monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Hourly coverage from pre-market through after-hours across New York DST changes.
+    - cron: '5 11-23 * * 1-5'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: investment-desk-news-catalysts
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Require persistent database
+        run: test -n "${DATABASE_URL}" || (echo "DATABASE_URL is required" && exit 1)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Monitor portfolio and watchlist news
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          SEC_USER_AGENT: InvestmentDesk fgr-inv@users.noreply.github.com
+        run: python -m scripts.run_news_catalyst_monitor

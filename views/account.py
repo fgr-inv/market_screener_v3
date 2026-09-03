@@ -24,15 +24,15 @@ for feature in ['technical_screener','fundamental_screener','combined_screener',
     rows.append({'Feature':feature,'Today':('∞' if s.get('exempt') else s['daily_used']),'Daily limit':('∞' if s.get('exempt') else s['daily_limit']),
                  'Month':('∞' if s.get('exempt') else s['monthly_used']),'Monthly limit':('∞' if s.get('exempt') else s['monthly_limit'])})
 st.subheader('Usage')
-st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 st.subheader('Entitlements')
 ent={k:v for k,v in cfg.items() if k!='quotas'}
-st.dataframe(pd.DataFrame([{'Entitlement':k,'Value':v} for k,v in ent.items()]),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame([{'Entitlement':k,'Value':v} for k,v in ent.items()]),width='stretch',hide_index=True)
 
 st.subheader('Plan matrix')
 plan_rows=[]
 for name,p in PLANS.items():
     plan_rows.append({'Plan':name,'Max assets':p['max_screener_assets'],'Deep Top N':p['max_deep_candidates'],'Workers':p['max_workers'],
                       'Fundamental':p['fundamental_screener'],'Combined':p['combined_screener'],'DCF':p['dcf'],'Quota exempt':p.get('quota_exempt',False)})
-st.dataframe(pd.DataFrame(plan_rows),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame(plan_rows),width='stretch',hide_index=True)
 st.caption('OWNER no se asigna desde Stripe. Configuralo server-side con OWNER_USER_IDS / OWNER_EMAILS o DEV_USER_ROLE=OWNER en desarrollo.')

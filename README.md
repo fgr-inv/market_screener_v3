@@ -534,3 +534,17 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Missing average cost no longer turns the full market value into fictitious unrealized profit; cost basis and P&L show `N/D` when cost coverage is zero and covered-only metrics when coverage is partial.
 - Unknown portfolio sectors can be completed from the local market universe/snapshot with a live metadata fallback, improving sector concentration and Portfolio Fit.
 - Existing quantity positions can be converted in one click to their current calculated percentage weights without re-entering the portfolio.
+
+## V11.36 — News & Catalyst Intelligence Agent
+- Adds an hourly, headless monitor for the current user's portfolio plus persistent Investment Desk watchlist. It runs in GitHub Actions while Streamlit is closed.
+- Uses bounded FMP stock-news and issuer press-release batches, with a Yahoo Finance fallback when the configured FMP route returns no news. Official SEC submissions are checked at bounded morning/afternoon slots and on manual runs.
+- Rejects undated, stale and implausibly future items before analysis, preserves publisher/date/source URL, deduplicates syndicated headlines and prefers issuer/SEC primary evidence when available.
+- Classifies earnings, guidance, M&A, regulatory/legal, capital structure, cybersecurity, management, product/contract, capital return and analyst-rating events with explicit severity, direction and materiality.
+- Compares each material story with saved thesis catalysts and invalidation conditions. Matches are labeled as potential evidence for human review; the agent never rewrites a thesis automatically.
+- Routes material events to the News agent and wakes Fundamental, Portfolio or CIO context only when the event type and severity require them.
+- Persists scan outputs, event fingerprints and the agent handoff audit in the user-scoped database. Repeated hourly scans do not resend the same story, while failed Discord delivery remains retriable.
+- Material alerts include the linked source in Discord, appear in Alert Center and Investment Desk, and are reused by the next pre-market CIO brief.
+- News decisions enter the existing 1/5/20-day Shadow ledger; the News agent uses five trading days as its primary calibration horizon.
+- Migrates Streamlit components from deprecated `use_container_width` to `width`, removing the repeated console warning on current Streamlit versions.
+- No additional paid service or secret is required beyond the existing `DATABASE_URL`, `DEV_USER_ID` and `FMP_API_KEY`. SEC EDGAR is public; Yahoo remains the no-news fallback.
+- V11.36 remains research-only Shadow Mode. It never sends, edits or cancels broker orders.

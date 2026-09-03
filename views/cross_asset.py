@@ -19,5 +19,5 @@ for name,sym in mapping.items():
     except Exception: pass
 df=pd.DataFrame(rows)
 if not df.empty: df=df.sort_values(['Technical','Context'],ascending=False,na_position='last')
-st.dataframe(df,use_container_width=True,hide_index=True)
+st.dataframe(df,width='stretch',hide_index=True)
 section_note('Los scores son comparables en escala 0–100, pero sus drivers cambian por clase de activo. “Trend” en un yield index describe la tasa, no el precio de un bono.')

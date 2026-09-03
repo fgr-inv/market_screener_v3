@@ -26,6 +26,7 @@ MIN_UNIQUE_TICKERS = 5
 PAUSE_MIN_SAMPLE = 40
 PRIMARY_HORIZON_BY_AGENT = {
     'Technical Signal': 5,
+    'News & Catalyst': 5,
     'Fundamental & Catalyst': 20,
     'CIO Watchlist': 20,
 }

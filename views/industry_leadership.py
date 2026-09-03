@@ -27,5 +27,5 @@ else:
 
 if 'Industry' in work.columns:
     table=industry_leadership(work[work['Industry']!='Not loaded'])
-    st.dataframe(table,use_container_width=True,hide_index=True)
+    st.dataframe(table,width='stretch',hide_index=True)
     section_note('Industry ranking only uses names whose industry metadata has been loaded. For full-universe production use a dedicated fundamentals/industry provider or persist metadata daily.')

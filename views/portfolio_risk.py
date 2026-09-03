@@ -26,7 +26,7 @@ with st.sidebar:
         c=st.number_input('Costo promedio',min_value=0.0,value=100.0,step=1.0)
     sec=st.text_input('Sector','Technology')
     note=st.text_input('Nota','')
-    if st.button('Guardar posición',type='primary',use_container_width=True):
+    if st.button('Guardar posición',type='primary',width='stretch'):
         try:
             if allocation is not None and not pos.empty and 'allocation_pct' in pos:
                 other=pos[pos['ticker'].astype(str).str.upper()!=t]['allocation_pct']
@@ -43,7 +43,7 @@ tickers=pos['ticker'].astype(str).tolist(); pm=download_prices(list(dict.fromkey
 summary,detail,corr=portfolio_risk(pos,pm)
 if summary.get('Allocation Status')=='OVER_ALLOCATED':
     st.error(f"Los porcentajes suman {summary.get('Allocation Total %',0):.1f}%. Editá las posiciones hasta que el total sea como máximo 100%.")
-    st.dataframe(pos,use_container_width=True,hide_index=True); st.stop()
+    st.dataframe(pos,width='stretch',hide_index=True); st.stop()
 themes=theme_exposure(detail); pairs=high_correlation_pairs(corr)
 
 metric_keys=['Market Value','Allocation Total %','Cash / Unassigned %','Annualized Vol %','1d VaR 95 $',
@@ -59,22 +59,22 @@ t1,t2,t3,t4=st.tabs(['Risk Contribution','Themes','Correlations','Positions'])
 with t1:
     section_note('Peso de capital y contribución al riesgo no son lo mismo. Un activo volátil puede aportar mucho más riesgo que su peso.')
     cols=['Ticker','Sector','Weight %','Risk Contribution %','Risk / Weight','Standalone Vol %','Market Value','Price','Allocation Source']
-    st.dataframe(detail[[c for c in cols if c in detail]].sort_values('Risk Contribution %',ascending=False),use_container_width=True,hide_index=True)
+    st.dataframe(detail[[c for c in cols if c in detail]].sort_values('Risk Contribution %',ascending=False),width='stretch',hide_index=True)
     if 'Risk Contribution %' in detail: st.bar_chart(detail.set_index('Ticker')['Risk Contribution %'])
 with t2:
     section_note('Clasificación económica transversal: detecta concentración AI/power/crypto que GICS puede ocultar.')
-    st.dataframe(themes,use_container_width=True,hide_index=True)
+    st.dataframe(themes,width='stretch',hide_index=True)
     if not themes.empty: st.bar_chart(themes.set_index('Theme')['Weight %'])
 with t3:
-    st.dataframe(corr.round(2),use_container_width=True)
+    st.dataframe(corr.round(2),width='stretch')
     if not pairs.empty:
         st.warning('Pares con correlación ≥ 0.80')
-        st.dataframe(pairs,use_container_width=True,hide_index=True)
+        st.dataframe(pairs,width='stretch',hide_index=True)
 with t4:
     display=pos.copy()
     if 'allocation_pct' in display:
         display['input_mode']=display['allocation_pct'].apply(lambda value:'PERCENTAGE' if pd.notna(value) and float(value)>0 else 'QUANTITY')
-    st.dataframe(display,use_container_width=True,hide_index=True)
+    st.dataframe(display,width='stretch',hide_index=True)
     kill=st.selectbox('Ticker a eliminar',['—']+tickers)
     if kill!='—' and st.button('Eliminar'):
         delete_position(kill,user_id=uid); st.rerun()

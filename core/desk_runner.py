@@ -1,7 +1,7 @@
 """Headless Investment Desk orchestrator used by UI and scheduled workers."""
 from __future__ import annotations
 from core.market_data import download_prices
-from core.storage import load_positions,load_json_snapshot,load_latest_snapshot
+from core.storage import load_positions,load_theses,load_json_snapshot,load_latest_snapshot
 from core.technical_agent import analyze_technical
 from core.fundamental_agent import analyze_fundamental
 from core.portfolio_risk_agent import analyze_portfolio_risk
@@ -13,19 +13,23 @@ from core.agent_audit import append_agent_audit
 from core.desk_store import save_desk_output
 from core.agent_router import full_review_plan
 from core.shadow_validation import capture_shadow_decisions
+from core.news_catalyst_agent import analyze_news_catalyst
 
 def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_review',max_tickers=25,
-                    agent_plan=None,events=None,run_key=None,candidate_sectors=None):
+                    agent_plan=None,events=None,run_key=None,candidate_sectors=None,news_by_ticker=None):
     uid=str(user_id or 'local-user'); tickers=list(dict.fromkeys(str(x).upper().strip() for x in tickers if str(x).strip()))[:max_tickers]
     plan=agent_plan or full_review_plan(tickers); ticker_agents=plan.get('ticker_agents') or {}; global_agents=set(plan.get('global_agents') or [])
-    automated=output_type in {'scheduled_review','daily_cio_brief','daily_opportunity_hunt'} and bool(run_key)
+    automated=output_type in {'scheduled_review','daily_cio_brief','daily_opportunity_hunt','news_catalyst_review'} and bool(run_key)
     pos=load_positions(user_id=uid); position_ticks=[] if pos.empty else pos['ticker'].dropna().astype(str).str.upper().tolist()
-    needs_prices='portfolio' in global_agents or any('technical' in agents for agents in ticker_agents.values())
+    needs_prices='portfolio' in global_agents or any({'technical','news'} & set(agents) for agents in ticker_agents.values())
     price_ticks=list(ticker_agents) + (position_ticks if 'portfolio' in global_agents else [])
     if automated and ticker_agents: price_ticks.append('SPY')
     needs_prices=needs_prices or bool(automated and ticker_agents)
     all_ticks=list(dict.fromkeys(price_ticks)); histories=download_prices(all_ticks,period='2y',max_age_minutes=15) if needs_prices and all_ticks else {}
     verified=[]
+    news_by_ticker={str(ticker).upper():list(rows or []) for ticker,rows in (news_by_ticker or {}).items()}
+    thesis_rows=load_theses(user_id=uid) if any('news' in agents for agents in ticker_agents.values()) else None
+    theses={} if thesis_rows is None or thesis_rows.empty else {str(r['ticker']).upper():r.to_dict() for _,r in thesis_rows.iterrows()}
     append_agent_audit(uid,'events_received',{'events':events or [],'run_key':run_key,'shadow_mode':True})
     append_agent_audit(uid,'agent_router_plan',plan)
     market=None
@@ -48,6 +52,10 @@ def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_
             append_agent_audit(uid,'agent_invoked',{'agent':'fundamental','subject':ticker,'run_key':run_key})
             result=verify_result(analyze_fundamental(ticker,force_refresh=force_fundamental))
             verified.append(result); append_agent_audit(uid,'scheduled_specialist_verified',result.to_dict())
+        if 'news' in agents:
+            append_agent_audit(uid,'agent_invoked',{'agent':'news','subject':ticker,'run_key':run_key})
+            result=verify_result(analyze_news_catalyst(ticker,news_by_ticker.get(ticker,[]),theses.get(ticker),ticker in position_ticks))
+            verified.append(result); append_agent_audit(uid,'scheduled_specialist_verified',result.to_dict())
     sectors={str(ticker).upper():str(sector or 'Unknown')
              for ticker,sector in (candidate_sectors or {}).items()}
     if not pos.empty: sectors.update({str(r['ticker']).upper():str(r.get('sector','Unknown') or 'Unknown') for _,r in pos.iterrows()})
@@ -59,6 +67,7 @@ def run_desk_review(user_id,tickers,force_fundamental=False,output_type='shadow_
              'agents_invoked':[{'agent':r.agent,'subject':r.subject} for r in verified],
              'market':None if market is None else market.to_dict(),
              'portfolio':None if portfolio is None else portfolio.to_dict(),'watchlist':watchlist,'brief':brief,
+             'news_by_ticker':news_by_ticker,
              'shadow_decision_capture':shadow_capture}
     append_agent_audit(uid,'shadow_decisions_captured',{'run_key':run_key,'status':shadow_capture.get('status'),
                        'created':[r.get('decision_key') for r in shadow_capture.get('created',[])],

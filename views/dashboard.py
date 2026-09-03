@@ -12,7 +12,7 @@ hero('Market Dashboard','Snapshot-first + cambios materiales + calidad/frescura 
 
 with st.sidebar:
     st.caption('Lee snapshots persistidos primero. La actualización completa reconstruye breadth, macro y screener.')
-    refresh=st.button('🔄 Actualizar mercado ahora',type='primary',use_container_width=True)
+    refresh=st.button('🔄 Actualizar mercado ahora',type='primary',width='stretch')
 
 if st.session_state.scan_results is None:
     cached=load_latest_snapshot('latest_screener'); sectors=load_latest_snapshot('latest_sectors'); breadth=load_latest_snapshot('latest_breadth')
@@ -55,15 +55,15 @@ st.subheader('⚡ What Changed?')
 section_note('Cambios materiales entre los dos últimos snapshots: evita releer toda la terminal para detectar qué cambió.')
 changes=latest_changes(load_score_history(days=10),min_abs_delta=5,limit=20)
 if changes.empty: st.info('Se necesitan al menos dos días de snapshots para calcular cambios materiales.')
-else: st.dataframe(changes,use_container_width=True,hide_index=True)
+else: st.dataframe(changes,width='stretch',hide_index=True)
 
 st.subheader('🧭 Sector leadership')
 section_note('Fuerza + entrada + macro fit. Liderazgo no equivale automáticamente a compra.')
-if sectors is not None and not sectors.empty: st.dataframe(sectors,use_container_width=True,hide_index=True)
+if sectors is not None and not sectors.empty: st.dataframe(sectors,width='stretch',hide_index=True)
 
 st.subheader('🔥 Best setups from snapshot')
 rank_col='Preliminary_Score' if 'Preliminary_Score' in results else 'Technical_Score'
 top=results.sort_values([rank_col,'Entry_Score'],ascending=False).head(20)
 cols=['Ticker','Sector',rank_col,'Trend_Score','Entry_Score','RS_Percentile','Sector_Score','Macro_Fit','Risk_Score','Confidence_Score','Model_Coverage_%','RR_Text','Setup','Action']
-st.dataframe(top[[c for c in cols if c in top]],use_container_width=True,hide_index=True)
+st.dataframe(top[[c for c in cols if c in top]],width='stretch',hide_index=True)
 st.caption(f'Último snapshot: {st.session_state.last_refresh_label}')

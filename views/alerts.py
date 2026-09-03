@@ -17,19 +17,27 @@ pos=load_positions(user_id=uid); saved=list_alerts(user_id=uid); channel=webhook
 
 hunt=load_latest_desk_output(uid,'daily_opportunity_hunt') or {}
 scan=load_latest_desk_output(uid,'event_scan') or {}
+news_scan=load_latest_desk_output(uid,'news_catalyst_scan') or {}
 hunt_payload=hunt.get('payload') or {}; discovery=hunt_payload.get('discovery') or {}
 scan_payload=scan.get('payload') or {}; actionable=scan_payload.get('actionable_events') or []
+news_payload=news_scan.get('payload') or {}; news_events=news_payload.get('actionable_events') or []
+material_news=news_payload.get('material_events') or [event for event in news_events if int(event.get('severity') or 0)>=4]
 st.subheader('Background Desk Activity')
-c1,c2,c3=st.columns(3)
+c1,c2,c3,c4=st.columns(4)
 c1.metric('Verified opportunities',len(discovery.get('verified_opportunities') or []))
 c2.metric('Watchlist monitored',len(discovery.get('monitor_tickers') or []))
 c3.metric('Latest actionable events',len(actionable))
+c4.metric('Material news',len(material_news))
 if actionable:
     st.warning('Material background events: '+' | '.join(
         f"{event.get('ticker')}: {', '.join(event.get('reasons') or [])}" for event in actionable[:5]))
 elif hunt_payload:
     st.info(hunt_payload.get('brief',{}).get('headline','Background opportunity hunt available.'))
 st.caption(f"Opportunity hunt: {hunt.get('created_at','N/D')} · Intraday scan: {scan.get('created_at','N/D')}")
+if material_news:
+    st.warning('News/catalysts: '+' | '.join(
+        f"{event.get('ticker')}: {', '.join(event.get('reasons') or [])}" for event in material_news[:5]))
+st.caption(f"News scan: {news_scan.get('created_at','N/D')}")
 
 c1,c2,c3=st.columns(3)
 c1.metric('Portfolio positions',len(pos))
@@ -70,7 +78,7 @@ if st.button('Actualizar señales',type='primary'):
 
 rows=st.session_state.get('live_alert_rows')
 if rows:
-    st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 elif rows is None:
     st.info('La actividad automática ya está cargada. Pulsá “Actualizar señales” solamente si querés ejecutar ahora el análisis manual de estos activos.')
 else:

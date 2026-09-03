@@ -1,7 +1,11 @@
 import os
+import hashlib
 from contextlib import contextmanager
 
 import pandas as pd
+
+
+_SCHEMA_READY_FOR=None
 
 
 def _database_url():
@@ -42,8 +46,12 @@ def cloud_connection():
 
 
 def ensure_production_schema():
+    global _SCHEMA_READY_FOR
     if not cloud_available():
         return False,'DATABASE_URL not configured'
+    schema_key=hashlib.sha256(_database_url().encode('utf-8')).hexdigest()
+    if _SCHEMA_READY_FOR==schema_key:
+        return True,'OK'
     try:
         from sqlalchemy import text
         statements=[
@@ -191,6 +199,15 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_agent_outputs_latest
                ON user_agent_outputs(user_id,output_type,created_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS user_agent_audit (
+                id BIGSERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                ts TIMESTAMP NOT NULL,
+                event_type TEXT NOT NULL,
+                payload_json TEXT NOT NULL
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_user_agent_audit_latest
+               ON user_agent_audit(user_id,ts DESC)''',
             '''CREATE TABLE IF NOT EXISTS user_agent_event_state (
                 user_id TEXT NOT NULL,
                 event_key TEXT NOT NULL,
@@ -274,6 +291,7 @@ def ensure_production_schema():
         with cloud_connection() as con:
             for stmt in statements:
                 con.execute(text(stmt))
+        _SCHEMA_READY_FOR=schema_key
         return True,'OK'
     except Exception as e:
         return False,str(e)[:240]

@@ -12,7 +12,7 @@ with st.sidebar:
     trend_min=st.slider('Trend mínimo',40,95,65)
     setup=st.selectbox('Setup',['Todos','Uptrend Pullback','EMA62/79 Buy Zone','200D Bounce','Breakout / Base'])
     step=st.slider('Muestreo (días)',1,20,5)
-    run=st.button('▶ Ejecutar backtest',type='primary',use_container_width=True)
+    run=st.button('▶ Ejecutar backtest',type='primary',width='stretch')
 
 if not run:
     st.info('Configurá el test y presioná Ejecutar backtest.')
@@ -37,9 +37,9 @@ c2.metric('Años de datos',round(len(raw)/252,1))
 
 st.subheader('Resultados por horizonte')
 section_note(f'Este backtest usa el modelo técnico de {detected} y evita usar fundamentales actuales sobre datos históricos.')
-st.dataframe(summary,use_container_width=True,hide_index=True)
+st.dataframe(summary,width='stretch',hide_index=True)
 
 st.subheader('Eventos')
-st.dataframe(events.sort_values('Date',ascending=False).head(250),use_container_width=True,hide_index=True)
+st.dataframe(events.sort_values('Date',ascending=False).head(250),width='stretch',hide_index=True)
 
 st.warning('No incorpora slippage, gaps, impuestos ni ejecución real. Úsalo para validar la señal, no para prometer retornos.')

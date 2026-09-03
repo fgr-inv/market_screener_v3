@@ -32,7 +32,7 @@ with st.expander('➕ New trade',expanded=False):
 
 open_df=list_trades('OPEN',user_id=uid)
 if not open_df.empty:
-    st.subheader('Open Trades'); st.dataframe(open_df,use_container_width=True,hide_index=True)
+    st.subheader('Open Trades'); st.dataframe(open_df,width='stretch',hide_index=True)
     with st.expander('Close trade'):
         tid=st.selectbox('Trade ID',open_df['id'].tolist()); px=st.number_input('Exit price',min_value=0.000001,value=100.0); note=st.text_input('Close note')
         if st.button('Close selected trade'):
@@ -47,8 +47,8 @@ if stats:
     cols=st.columns(len(stats))
     for col,(k,v) in zip(cols,stats.items()): col.metric(k,'N/D' if pd.isna(v) else (f'{v:.2f}' if isinstance(v,float) else v))
 if not closed.empty:
-    st.subheader('Closed Trades'); st.dataframe(closed,use_container_width=True,hide_index=True)
+    st.subheader('Closed Trades'); st.dataframe(closed,width='stretch',hide_index=True)
     if 'setup' in closed and 'pnl_percent' in closed:
         by=closed.groupby('setup')['pnl_percent'].agg(['count','mean','median']).reset_index().sort_values('mean',ascending=False)
-        st.subheader('Setup Analytics'); st.dataframe(by,use_container_width=True,hide_index=True)
+        st.subheader('Setup Analytics'); st.dataframe(by,width='stretch',hide_index=True)
 section_note('El journal es privado por usuario. No se envían órdenes; registra proceso y resultados para detectar qué setups funcionan mejor.')

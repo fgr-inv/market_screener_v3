@@ -116,7 +116,7 @@ hero(
 )
 
 with st.sidebar:
-    refresh = st.button("🔄 Actualizar Macro", type="primary", use_container_width=True)
+    refresh = st.button("🔄 Actualizar Macro", type="primary", width='stretch')
 
 if st.session_state.macro_snapshot is None or refresh:
     if refresh:
@@ -171,7 +171,7 @@ core = pd.DataFrame([
     ["Credit", _score_text(x["credit"]), _state(x["credit"],"Saludable","Tensionado"), "HYG vs Treasuries/IG"],
     ["Liquidity", _score_text(x["liquidity"]), _state(x["liquidity"]), "Dólar + condiciones de mercado"],
 ], columns=["Factor","Score","Estado","Qué representa"])
-st.dataframe(core, use_container_width=True, hide_index=True)
+st.dataframe(core, width='stretch', hide_index=True)
 
 # 3. Rates panel
 st.subheader("🏦 Tasas, inflación y empleo")
@@ -192,7 +192,7 @@ r9.metric("Payroll 3m avg", "N/A" if pd.isna(_num(m,"Payroll_3m_Avg_Change")) el
 st.subheader("🧭 ¿Qué implica para los sectores?")
 section_note("Macro Fit no es una señal de compra. Traduce el entorno macro actual a sensibilidad sectorial; Sector Rotation debe confirmar precio, momentum y relative strength.")
 sector_df = _sector_map(x)
-st.dataframe(sector_df[["Sector","ETF","Macro Fit","Lectura","Principal driver"]], use_container_width=True, hide_index=True)
+st.dataframe(sector_df[["Sector","ETF","Macro Fit","Lectura","Principal driver"]], width='stretch', hide_index=True)
 
 fav = sector_df.dropna(subset=["Macro Fit"]).head(3)
 weak = sector_df.dropna(subset=["Macro Fit"]).tail(3).sort_values("Macro Fit")
@@ -212,7 +212,7 @@ mc4.metric("HYG/IEF Δ20d", "N/A" if pd.isna(_num(m,"HYG_IEF_20d")) else f'{_num
 with st.expander("Ver breadth por universo"):
     bdf = st.session_state.get("macro_breadth_detail")
     if isinstance(bdf, pd.DataFrame) and not bdf.empty:
-        st.dataframe(bdf, use_container_width=True, hide_index=True)
+        st.dataframe(bdf, width='stretch', hide_index=True)
 
 # 6. Raw FRED only when needed
 with st.expander("Ver detalle económico / calidad de datos"):
@@ -220,7 +220,7 @@ with st.expander("Ver detalle económico / calidad de datos"):
     st.metric("FRED coverage", f"{coverage:.0f}%")
     slow=m.get("Slow_Table")
     if isinstance(slow,pd.DataFrame) and not slow.empty:
-        st.dataframe(slow, use_container_width=True, hide_index=True)
+        st.dataframe(slow, width='stretch', hide_index=True)
     missing=m.get("Missing") or []
     if missing:
         st.warning("Series no disponibles: " + ", ".join(missing))
@@ -232,6 +232,6 @@ cal=get_us_macro_calendar(14)
 if cal.empty:
     st.caption("No se recibieron próximas fechas oficiales desde FRED.")
 else:
-    st.dataframe(cal, use_container_width=True, hide_index=True)
+    st.dataframe(cal, width='stretch', hide_index=True)
 
 st.caption("Datos económicos: FRED. Las clasificaciones y Macro Fit son modelos internos probabilísticos, no pronósticos ni recomendaciones financieras.")

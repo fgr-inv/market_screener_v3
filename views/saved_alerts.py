@@ -58,11 +58,11 @@ st.caption(f"Canal actual: {masked_webhook(uid)}")
 with st.expander('Configurar webhook personal', expanded=not channel['configured']):
     webhook_input=st.text_input('Webhook URL',type='password',placeholder='Discord / Slack webhook HTTPS',help='Se guarda por usuario. No se muestra completo en la interfaz.')
     wc1,wc2=st.columns(2)
-    if wc1.button('Guardar webhook',use_container_width=True):
+    if wc1.button('Guardar webhook',width='stretch'):
         try:
             set_user_webhook(uid,webhook_input,enabled=True); st.success('Webhook guardado.'); st.rerun()
         except Exception as exc: st.error(str(exc))
-    if wc2.button('Eliminar webhook',use_container_width=True):
+    if wc2.button('Eliminar webhook',width='stretch'):
         try:
             clear_user_webhook(uid); st.success('Webhook eliminado.'); st.rerun()
         except Exception as exc: st.error(str(exc))
@@ -88,7 +88,7 @@ with st.form('create_saved_alert', clear_on_submit=False):
         repeat=st.checkbox('Repetir mientras siga verdadera',value=False)
         note=st.text_input('Nota (opcional)','',max_chars=240,placeholder='Ej.: revisar entrada si llega a esta zona')
         enabled=st.checkbox('Activar inmediatamente',value=True)
-    submitted=st.form_submit_button('🔔 Crear alerta',type='primary',use_container_width=True)
+    submitted=st.form_submit_button('🔔 Crear alerta',type='primary',width='stretch')
 
 if submitted:
     if not ticker: st.error('Ingresá un ticker válido.')
@@ -109,9 +109,9 @@ else:
             'last_hit':'Cumpliéndose','last_triggered_at':'Último aviso','last_evaluated_at':'Última evaluación','last_message':'Último mensaje','trigger_count':'Avisos'}
     display=display.rename(columns=rename)
     cols=['id','Ticker','Condición','Umbral','Activa','Nota','Cooldown min','Repite','Cumpliéndose','Último aviso','Última evaluación','Avisos','Último mensaje']
-    st.dataframe(display[[c for c in cols if c in display.columns]],use_container_width=True,hide_index=True)
+    st.dataframe(display[[c for c in cols if c in display.columns]],width='stretch',hide_index=True)
 
-    if st.button('▶ Evaluar ahora',use_container_width=False):
+    if st.button('▶ Evaluar ahora',width='content'):
         active=alerts[alerts['enabled']==True]
         if active.empty: st.warning('No hay alertas activas.')
         else:
@@ -122,7 +122,7 @@ else:
                         hit,msg=evaluate_rule(r,pm,spy); rows.append({'ID':r['id'],'Ticker':r['ticker'],'Condición':RULE_LABELS.get(r['rule_type'],r['rule_type']),'Se cumple':bool(hit),'Resultado':msg})
                     except Exception as exc:
                         rows.append({'ID':r['id'],'Ticker':r['ticker'],'Condición':r['rule_type'],'Se cumple':False,'Resultado':f'ERROR: {exc}'})
-                st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+                st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 
     st.subheader('Administrar')
     options={int(r['id']):f"#{int(r['id'])} · {r['ticker']} · {RULE_LABELS.get(r['rule_type'],r['rule_type'])} {r['threshold']}" for _,r in alerts.iterrows()}
@@ -130,13 +130,13 @@ else:
     with c1:
         aid=st.selectbox('Activar/desactivar',ids,format_func=lambda x:options[x],key='manage_alert')
         current=bool(alerts.loc[alerts['id']==aid,'enabled'].iloc[0]); value=st.checkbox('Activa',value=current,key=f'enabled_{aid}')
-        if st.button('Guardar estado',use_container_width=True):
+        if st.button('Guardar estado',width='stretch'):
             try: set_alert_enabled(aid,value,user_id=uid); st.success('Estado actualizado.'); st.rerun()
             except Exception as exc: st.error(str(exc))
     with c2:
         did=st.selectbox('Eliminar',ids,format_func=lambda x:options[x],key='delete_alert')
         confirm=st.checkbox('Confirmo que quiero eliminarla',key=f'confirm_delete_{did}')
-        if st.button('🗑️ Eliminar alerta',disabled=not confirm,use_container_width=True):
+        if st.button('🗑️ Eliminar alerta',disabled=not confirm,width='stretch'):
             try: delete_alert(did,user_id=uid); st.success('Alerta eliminada.'); st.rerun()
             except Exception as exc: st.error(str(exc))
 

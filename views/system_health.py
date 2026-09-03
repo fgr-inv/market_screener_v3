@@ -32,22 +32,22 @@ if cloud_available():
     else:
         st.error(f'Cloud DB problem: {msg}')
     if st.button('Sync local fallback state → Cloud DB'):
-        st.dataframe(sync_local_state_to_cloud(),use_container_width=True,hide_index=True)
+        st.dataframe(sync_local_state_to_cloud(),width='stretch',hide_index=True)
 else:
     st.warning('DATABASE_URL no está configurado. La app usa DuckDB + CSV/GitHub fallback; para compartir estado entre Streamlit y Actions, Postgres/Supabase es la opción recomendada.')
 
 if st.button('Run provider checks',type='primary'):
     st.session_state['provider_health']=provider_health()
 health=st.session_state.get('provider_health')
-if health is not None: st.dataframe(health,use_container_width=True,hide_index=True)
+if health is not None: st.dataframe(health,width='stretch',hide_index=True)
 
-st.subheader('Provider capabilities'); st.dataframe(provider_capabilities(),use_container_width=True,hide_index=True)
+st.subheader('Provider capabilities'); st.dataframe(provider_capabilities(),width='stretch',hide_index=True)
 
 root=Path(__file__).resolve().parents[1]; snap=root/'data'/'snapshots'; cache=root/'data'/'cache'/'prices'
 rows=[]
 for p in sorted(snap.glob('*')):
     if p.is_file(): rows.append({'File':p.name,'Size KB':round(p.stat().st_size/1024,1),'Modified':pd.Timestamp(p.stat().st_mtime,unit='s')})
-st.subheader('Snapshots'); st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+st.subheader('Snapshots'); st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 
 m1,m2,m3=st.columns(3)
 m1.metric('Price cache files',len(list(cache.glob('*'))) if cache.exists() else 0)
@@ -57,7 +57,7 @@ m3.metric('Alert state rows',len(list_alert_states()))
 st.subheader('Recent structured errors')
 errs=recent_errors(100)
 if errs.empty: st.success('No structured runtime errors recorded in this filesystem.')
-else: st.dataframe(errs,use_container_width=True,hide_index=True)
+else: st.dataframe(errs,width='stretch',hide_index=True)
 section_note('En Streamlit Cloud el filesystem puede ser efímero; para observability multi-instance conviene enviar logs a un servicio externo más adelante.')
 
 st.subheader('Secrets / integrations')
@@ -68,4 +68,4 @@ for k in keys:
     try: exists=k in st.secrets and bool(st.secrets[k])
     except Exception: exists=bool(os.getenv(k))
     status.append({'Integration':k,'Configured':exists})
-st.dataframe(pd.DataFrame(status),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame(status),width='stretch',hide_index=True)

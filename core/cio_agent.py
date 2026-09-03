@@ -20,7 +20,7 @@ def build_cio_brief(results, max_decisions=5, watchlist=None, events=None):
         d=r.to_dict() if hasattr(r,'to_dict') else dict(r)
         if d.get('verification_status') in accepted:
             state=d.get('state')
-            multiplier=1.0 if state in {'SETUP','BROKEN_SETUP','HIGH_RISK'} else .85 if state=='ELEVATED' else .65
+            multiplier=1.0 if state in {'SETUP','BROKEN_SETUP','HIGH_RISK','MATERIAL_NEGATIVE','MATERIAL_POSITIVE','MATERIAL_REVIEW'} else .85 if state in {'ELEVATED','MIXED_CATALYSTS'} else .65
             materiality=float(d.get('confidence') or 0) * multiplier
             rows.append((materiality,d))
         else: blocked.append(d)
@@ -29,11 +29,12 @@ def build_cio_brief(results, max_decisions=5, watchlist=None, events=None):
     market=next((d for _,d in rows if d.get('agent')=='Market Regime & Sector'),None)
     portfolio=[d for _,d in rows if d.get('agent')=='Portfolio & Risk']
     fundamentals=[d for _,d in rows if d.get('agent')=='Fundamental & Catalyst']
+    news_items=[d for _,d in rows if d.get('agent')=='News & Catalyst']
     watchlist=list(watchlist or [])
     event_rows=list(events or [])
     conflicts=[]
     for _,d in rows:
-        if d.get('contradicting_evidence') or d.get('state') in {'BROKEN_SETUP','DETERIORATING','RISK_OFF','HIGH_RISK'}:
+        if d.get('contradicting_evidence') or d.get('state') in {'BROKEN_SETUP','DETERIORATING','RISK_OFF','HIGH_RISK','MATERIAL_NEGATIVE','MIXED_CATALYSTS'}:
             conflicts.append(_compact(d))
     for d in blocked:
         conflicts.append(_compact(d))
@@ -48,16 +49,19 @@ def build_cio_brief(results, max_decisions=5, watchlist=None, events=None):
     material_reasons=[]
     for event in event_rows:
         if int(event.get('severity') or 0)>=4:
-            material_reasons.append(f"{event.get('ticker')}: {'; '.join(event.get('reasons') or [])}")
+            reason=f"{event.get('ticker')}: {'; '.join(event.get('reasons') or [])}"
+            story=((event.get('metrics') or {}).get('story') or {})
+            if story.get('url'): reason+=f" · {story.get('url')}"
+            material_reasons.append(reason)
     for d in decisions:
-        if d.get('state') in {'HIGH_RISK','ELEVATED','BROKEN_SETUP','DETERIORATING','RISK_OFF'} and float(d.get('confidence') or 0)>=.55:
+        if d.get('state') in {'HIGH_RISK','ELEVATED','BROKEN_SETUP','DETERIORATING','RISK_OFF','MATERIAL_NEGATIVE','MATERIAL_POSITIVE','MATERIAL_REVIEW','MIXED_CATALYSTS'} and float(d.get('confidence') or 0)>=.55:
             material_reasons.append(d.get('summary') or f"{d.get('subject')} {d.get('state')}")
     if watchlist and float(watchlist[0].get('Priority Score') or 0)>=75:
         material_reasons.append(f"{watchlist[0].get('Ticker')} reached watchlist priority {watchlist[0].get('Priority Score')}")
     material_reasons=list(dict.fromkeys(material_reasons))[:5]
     decisions_needed=[]
     for d in decisions:
-        if d.get('state') in {'SETUP','BROKEN_SETUP','IMPROVING','DETERIORATING','ELEVATED','HIGH_RISK'}:
+        if d.get('state') in {'SETUP','BROKEN_SETUP','IMPROVING','DETERIORATING','ELEVATED','HIGH_RISK','MATERIAL_NEGATIVE','MATERIAL_POSITIVE','MATERIAL_REVIEW','MIXED_CATALYSTS'}:
             decisions_needed.append(_compact(d))
     market_section=_compact(market) if market else {
         'subject':'MARKET','agent':'Market Regime & Sector','state':'NOT_CHECKED','confidence':0,
@@ -70,7 +74,9 @@ def build_cio_brief(results, max_decisions=5, watchlist=None, events=None):
         'principal_risk':principal_risk or {'state':'NOT_CHECKED','summary':'No verified portfolio or conflict risk was available.','verification_status':'NOT_CHECKED'},
         'top_opportunities':watchlist[:3],
         'portfolio_items':[_compact(d) for d in portfolio],
-        'thesis_changes':[_compact(d) for d in fundamentals if d.get('state') in {'IMPROVING','DETERIORATING'}],
+        'news_and_catalysts':[_compact(d) for d in news_items],
+        'thesis_changes':[_compact(d) for d in fundamentals if d.get('state') in {'IMPROVING','DETERIORATING'}]+
+                         [_compact(d) for d in news_items if d.get('state') in {'MATERIAL_NEGATIVE','MATERIAL_POSITIVE','MIXED_CATALYSTS'}],
         'avoid_or_conflicting':conflicts[:5],
         'decisions_needed':decisions_needed[:max_decisions],
         'material':bool(material_reasons),'material_reasons':material_reasons,

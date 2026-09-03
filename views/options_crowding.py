@@ -28,7 +28,7 @@ else:
     f.metric('Put - Call IV skew',fmt_pct(opts['iv_skew_put_minus_call_%']))
     g.metric('Total OI',fmt_num((opts['call_oi'] or 0)+(opts['put_oi'] or 0),0))
     with st.expander('Near-the-money chain'):
-        st.dataframe(opts['detail'],use_container_width=True,hide_index=True)
+        st.dataframe(opts['detail'],width='stretch',hide_index=True)
 
 st.subheader('Crowding / Short Interest')
 a,b,c,d=st.columns(4)
@@ -36,7 +36,7 @@ a.metric('Crowding Risk',crowd['Crowding_Risk'])
 b.metric('Short % Float',fmt_pct(crowd['Short_%_Float']))
 c.metric('Days to Cover',fmt_num(crowd['Short_Ratio_Days']))
 d.metric('Institutional Ownership',fmt_pct(crowd['Institution_%']))
-st.dataframe(pd.DataFrame([[k,v] for k,v in crowd.items()],columns=['Metric','Value']),use_container_width=True,hide_index=True)
+st.dataframe(pd.DataFrame([[k,v] for k,v in crowd.items()],columns=['Metric','Value']),width='stretch',hide_index=True)
 
 st.subheader('Liquidity / Execution')
 a,b,c=st.columns(3)

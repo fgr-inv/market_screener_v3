@@ -56,7 +56,7 @@ with st.sidebar:
     analysis_level=st.selectbox('Nivel de análisis',_levels,index=0,
         help='Técnico evita llamadas profundas. Fundamental usa fundamentals/revisions. Completo agrega DCF, escenarios e investigación institucional.')
     _signature=f"{ticker}|{asset_type}|{sector}|{analysis_level}"
-    _run_now=st.button('🔬 Analizar',type='primary',use_container_width=True)
+    _run_now=st.button('🔬 Analizar',type='primary',width='stretch')
 
 if not ticker: st.stop()
 if not _run_now and st.session_state.get('_asset_analysis_signature') != _signature:
@@ -243,7 +243,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.plotly_chart(technical_chart(h,ticker),use_container_width=True)
+st.plotly_chart(technical_chart(h,ticker),width='stretch')
 
 st.subheader('📍 Setup & Risk')
 x1,x2,x3,x4,x5=st.columns(5)
@@ -255,7 +255,7 @@ st.subheader('📐 Professional Technical Diagnostics')
 ta_keys=['Market_Structure','Weekly_State','FourH_State','Participation','Volatility_Regime','Technical_Location',
          'Anchored_VWAP','Dist_AVWAP_%','Volume_Profile_POC_Proxy','Relative_Volume_20d','Up_Down_Volume_20d','ATR_Percentile_1y']
 ta_table=pd.DataFrame([[k,row.get(k,'N/D')] for k in ta_keys],columns=['Technical dimension','Reading'])
-st.dataframe(ta_table,use_container_width=True,hide_index=True)
+st.dataframe(ta_table,width='stretch',hide_index=True)
 st.caption(row.get('TA_Data_Note',''))
 
 if final_type=='Acción' and research:
@@ -269,21 +269,21 @@ if final_type=='Acción' and research:
 
     st.markdown('**Bear / Base / Bull scenario map**')
     if isinstance(scen.get('Scenarios'),pd.DataFrame) and not scen['Scenarios'].empty:
-        st.dataframe(scen['Scenarios'],use_container_width=True,hide_index=True)
+        st.dataframe(scen['Scenarios'],width='stretch',hide_index=True)
     st.caption(scen.get('Scenario_Method',''))
     st.caption(scen.get('Scenario_Note',''))
 
     st.markdown('**Estimate revisions & earnings evidence**')
     rev_rows=[[k,v] for k,v in rev.items() if k not in {'Revision_Evidence'}]
-    st.dataframe(pd.DataFrame(rev_rows,columns=['Revision dimension','Reading']),use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame(rev_rows,columns=['Revision dimension','Reading']),width='stretch',hide_index=True)
     if rev.get('Revision_Evidence'): st.caption(' · '.join(rev['Revision_Evidence']))
 
     st.markdown('**True business-model peer benchmark**')
     st.caption(f"Comparable model: {row.get('Equity_Model','N/D')} · peers in current universe: {peers.get('Peer_Count',0)} · {peers.get('Peer_Summary','')}")
     peer_metrics=pd.DataFrame([[k,peers.get(k)] for k in ['Peer_Quality_Percentile','Peer_Valuation_Percentile','Peer_Revisions_Percentile','Peer_RS_Percentile']],columns=['Peer dimension','Percentile'])
-    st.dataframe(peer_metrics,use_container_width=True,hide_index=True)
+    st.dataframe(peer_metrics,width='stretch',hide_index=True)
     if isinstance(peers.get('Peer_Table'),pd.DataFrame) and not peers['Peer_Table'].empty:
-        st.dataframe(peers['Peer_Table'],use_container_width=True,hide_index=True)
+        st.dataframe(peers['Peer_Table'],width='stretch',hide_index=True)
 
     st.markdown('**Catalyst / risk map**')
     cat_table=pd.DataFrame([
@@ -292,8 +292,8 @@ if final_type=='Acción' and research:
         ['Near-term catalyst risk',cats.get('Near_Term_Catalyst_Risk','N/D')],
         ['Catalyst coverage',f"{cats.get('Catalyst_Coverage_%',0)}%"],
     ],columns=['Catalyst dimension','Reading'])
-    st.dataframe(cat_table,use_container_width=True,hide_index=True)
-    if cats.get('Dated_Catalysts'): st.dataframe(pd.DataFrame(cats['Dated_Catalysts']),use_container_width=True,hide_index=True)
+    st.dataframe(cat_table,width='stretch',hide_index=True)
+    if cats.get('Dated_Catalysts'): st.dataframe(pd.DataFrame(cats['Dated_Catalysts']),width='stretch',hide_index=True)
 
 # V9 Institutional multi-asset evidence layer
 st.subheader('🏛️ V9 Institutional Research Layer')
@@ -316,21 +316,21 @@ if final_type=='Acción' and isinstance(institutional,dict):
     vv3.metric('Earnings Quality',f"{forensic.get('Earnings_Quality_Score','N/D')}/100")
     vv4.metric('Financial Resilience',f"{forensic.get('Financial_Resilience_Score','N/D')}/100")
     if dcf.get('available') and isinstance(dcf.get('Scenarios'),pd.DataFrame):
-        st.dataframe(dcf['Scenarios'],use_container_width=True,hide_index=True)
+        st.dataframe(dcf['Scenarios'],width='stretch',hide_index=True)
     st.caption(val.get('Historical_Valuation_Note',''))
-    st.dataframe(pd.DataFrame([[k,v] for k,v in forensic.items() if k not in {'Evidence','Note'}],columns=['Financial-quality dimension','Reading']),use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame([[k,v] for k,v in forensic.items() if k not in {'Evidence','Note'}],columns=['Financial-quality dimension','Reading']),width='stretch',hide_index=True)
     st.caption(forensic.get('Note',''))
 
 if final_type=='Commodity' and isinstance(institutional,dict):
     ci=institutional.get('Commodity',{})
     st.markdown('**Physical market / curve / positioning**')
-    st.dataframe(pd.DataFrame([[k,v] for k,v in ci.items() if k!='Raw_Context'],columns=['Commodity dimension','Reading']),use_container_width=True,hide_index=True)
+    st.dataframe(pd.DataFrame([[k,v] for k,v in ci.items() if k!='Raw_Context'],columns=['Commodity dimension','Reading']),width='stretch',hide_index=True)
     st.caption(ci.get('Coverage_Note',''))
 
 fx=institutional.get('Factor_Exposure') if isinstance(institutional,dict) else None
 if isinstance(fx,pd.DataFrame) and not fx.empty:
     st.markdown('**Factor exposure (market proxies)**')
-    st.dataframe(fx,use_container_width=True,hide_index=True)
+    st.dataframe(fx,width='stretch',hide_index=True)
 
 if options_intel and options_intel.get('available'):
     st.markdown('**Options intelligence**')
@@ -339,7 +339,7 @@ if options_intel and options_intel.get('available'):
     oi2.metric('Max pain proxy','N/D' if pd.isna(options_intel.get('max_pain')) else f"${options_intel.get('max_pain'):.2f}")
     term=options_intel.get('term_structure')
     oi3.metric('Expiries analyzed',len(term) if isinstance(term,pd.DataFrame) else 0)
-    if isinstance(term,pd.DataFrame) and not term.empty: st.dataframe(term,use_container_width=True,hide_index=True)
+    if isinstance(term,pd.DataFrame) and not term.empty: st.dataframe(term,width='stretch',hide_index=True)
     st.caption(options_intel.get('note',''))
 
 thesis=institutional.get('Thesis',{}) if isinstance(institutional,dict) else {}
@@ -353,7 +353,7 @@ if thesis:
         ['Invalidation',thesis.get('Invalidation','N/D')],
         ['Recommended execution',thesis.get('Recommended_Execution','N/D')],
     ],columns=['Thesis dimension','Reading'])
-    st.dataframe(thesis_df,use_container_width=True,hide_index=True)
+    st.dataframe(thesis_df,width='stretch',hide_index=True)
     st.caption(thesis.get('Thesis_Note',''))
 
 # Position sizing
@@ -388,7 +388,7 @@ if final_type=='Acción':
             st.caption('Fundamental data source: '+str(fund.get('Premium_Fundamentals_Source')))
         premium_metrics={k:fund.get(k) for k in ['ROIC','FCF_Yield','Piotroski_Score','Altman_Z_Score'] if k in fund and pd.notna(fund.get(k))}
         if premium_metrics:
-            st.dataframe(pd.DataFrame(list(premium_metrics.items()),columns=['Premium fundamental metric','Value']),use_container_width=True,hide_index=True)
+            st.dataframe(pd.DataFrame(list(premium_metrics.items()),columns=['Premium fundamental metric','Value']),width='stretch',hide_index=True)
         st.info(professional_equity_framework(row.get('Sector',normalize_sector(sector)),fund.get('Industry',''),ticker))
         if eq:
             m1,m2,m3,m4=st.columns(4)
@@ -396,7 +396,7 @@ if final_type=='Acción':
             m3.metric('Valuation Coverage',f"{eq.get('Valuation_Coverage_%',0):.0f}%"); m4.metric('Specialist KPI Coverage',f"{eq.get('Specialist_KPI_Coverage_%',0):.0f}%")
             st.caption('Peer group: '+str(eq.get('Peer_Group','N/D')))
             qrows=[[k,v] for k,v in eq.get('Quality_Pillars',{}).items()]
-            if qrows: st.dataframe(pd.DataFrame(qrows,columns=['Quality pillar','Score']),use_container_width=True,hide_index=True)
+            if qrows: st.dataframe(pd.DataFrame(qrows,columns=['Quality pillar','Score']),width='stretch',hide_index=True)
             research=pd.DataFrame([
                 ['Preferred valuation',', '.join(eq.get('Preferred_Valuation_Methods',[]))],
                 ['Key catalysts',', '.join(eq.get('Key_Catalysts',[]))],
@@ -404,7 +404,7 @@ if final_type=='Acción':
                 ['Observed specialist KPIs',', '.join(eq.get('Observed_Specialist_KPIs',[])) or 'None'],
                 ['Missing specialist KPIs',', '.join(eq.get('Missing_Specialist_KPIs',[])) or 'None'],
             ],columns=['Professional research dimension','Reading'])
-            st.dataframe(research,use_container_width=True,hide_index=True)
+            st.dataframe(research,width='stretch',hide_index=True)
             st.caption(eq.get('Valuation_Note',''))
         if row.get('Sector_Model_Limitation'): st.caption(row['Sector_Model_Limitation'])
 
@@ -415,7 +415,7 @@ if final_type=='Acción':
         b.metric('Direction',analyst['Revision_Direction']); c.metric('Target Upside',fmt_pct(analyst['Price_Target_Upside_%']))
         d.metric('Analysts',fmt_num(analyst['Analyst_Count'],0))
         if not analyst['Revision_Detail'].empty:
-            st.dataframe(analyst['Revision_Detail'],use_container_width=True,hide_index=True)
+            st.dataframe(analyst['Revision_Detail'],width='stretch',hide_index=True)
 
     if event:
         st.subheader('📅 Event Risk')
@@ -428,7 +428,7 @@ else:
     ctx=get_asset_context(ticker,final_type,pm,macro)
     a,b=st.columns([1,3]); a.metric('Asset Context Score','N/D' if pd.isna(ctx.get('Asset_Context_Score')) else f"{ctx['Asset_Context_Score']}/100"); b.info(ctx.get('Framework','N/D'))
     detail=pd.DataFrame([[k,v] for k,v in ctx.items() if k not in {'Asset_Context_Score','Framework'}],columns=['Metric','Value'])
-    st.dataframe(detail,use_container_width=True,hide_index=True)
+    st.dataframe(detail,width='stretch',hide_index=True)
 
     if final_type=='Cripto':
         score,deep=crypto_derivatives_score('BTCUSDT' if ticker.startswith('BTC') else 'ETHUSDT' if ticker.startswith('ETH') else ticker.replace('-USD','')+'USDT')
@@ -439,25 +439,25 @@ else:
         cc[0].metric('Regime',cyc.get('Crypto_Regime','N/D')); cc[1].metric('Cycle',f"{cyc.get('Cycle_Score',0)}/100"); cc[2].metric('Long-Term Opp.',f"{cyc.get('Long_Term_Opportunity_Score',0)}/100"); cc[3].metric('Entry Timing',f"{cyc.get('Entry_Timing_Score',0)}/100"); cc[4].metric('Leverage Risk',cyc.get('Leverage_Risk','N/D'))
         st.success(cyc.get('Crypto_Verdict','')) if cyc.get('Long_Term_Opportunity_Score',0)>=75 else st.info(cyc.get('Crypto_Verdict',''))
         st.caption(cyc.get('Scenario_Note',''))
-        st.dataframe(pd.DataFrame([[k,v] for k,v in cyc.items() if k not in {'Crypto_Verdict','Scenario_Note'}],columns=['Cycle / execution dimension','Reading']),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame([[k,v] for k,v in cyc.items() if k not in {'Crypto_Verdict','Scenario_Note'}],columns=['Cycle / execution dimension','Reading']),width='stretch',hide_index=True)
         a,b,c=st.columns(3)
         a.metric('Model',pro.get('Crypto_Model','N/D')); b.metric('Derivatives Context',f'{score}/100'); c.metric('Specialist Coverage',f"{pro.get('Professional_Data_Coverage_%',0)}%")
         st.info(pro.get('Framework',''))
         score_rows=[[k,v] for k,v in pro.items() if str(k).endswith('_Score')]
-        if score_rows: st.dataframe(pd.DataFrame(score_rows,columns=['Model component','Score']),use_container_width=True,hide_index=True)
-        st.dataframe(pd.DataFrame([[k,v] for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')],columns=['Professional crypto metric','Value']),use_container_width=True,hide_index=True)
+        if score_rows: st.dataframe(pd.DataFrame(score_rows,columns=['Model component','Score']),width='stretch',hide_index=True)
+        st.dataframe(pd.DataFrame([[k,v] for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')],columns=['Professional crypto metric','Value']),width='stretch',hide_index=True)
         if pro.get('Missing_Professional_Data'): st.warning('Professional fields still unavailable from reliable free feeds: '+', '.join(pro['Missing_Professional_Data']))
 
     if final_type=='Commodity':
         deep=commodity_deep_context(ticker)
         st.subheader('⛏️ Commodity Deep Data')
         st.metric('Deep Data Score',f"{deep['Deep_Data_Score']}/100")
-        st.dataframe(pd.DataFrame([[k,v] for k,v in deep.items() if k!='Notes'],columns=['Metric','Value']),use_container_width=True,hide_index=True)
+        st.dataframe(pd.DataFrame([[k,v] for k,v in deep.items() if k!='Notes'],columns=['Metric','Value']),width='stretch',hide_index=True)
         if deep['Notes']: st.info(' '.join(deep['Notes']))
 
 # Data quality / coverage
 st.subheader('🧾 Data Coverage & Missing Professional Inputs')
-st.dataframe(coverage_rows(data_cov),use_container_width=True,hide_index=True)
+st.dataframe(coverage_rows(data_cov),width='stretch',hide_index=True)
 if data_cov.get('Missing_Critical_Data'):
     st.warning('Missing critical/specialist data: ' + ', '.join(map(str,data_cov['Missing_Critical_Data'])))
 else:
@@ -473,7 +473,7 @@ st.subheader('🧠 Why this score?')
 parts,penalty=explain_opportunity(row)
 exp=pd.DataFrame(parts,columns=['Component','Weighted Contribution'])
 if penalty: exp.loc[len(exp)]=['R/R + Event/Extension adjustments',penalty]
-st.dataframe(exp,use_container_width=True,hide_index=True)
+st.dataframe(exp,width='stretch',hide_index=True)
 if conf_reasons: st.caption('Confidence deductions: '+', '.join(conf_reasons))
 
 # Score history
@@ -483,7 +483,7 @@ if hist.empty:
     st.info('Todavía no hay snapshots históricos para este ticker. Se empiezan a acumular con los scans/daily refresh.')
 else:
     show=[c for c in ['ts','price','technical','trend','entry','quality','opportunity','confidence','action'] if c in hist]
-    st.dataframe(hist[show].sort_values('ts',ascending=False).head(60),use_container_width=True,hide_index=True)
+    st.dataframe(hist[show].sort_values('ts',ascending=False).head(60),width='stretch',hide_index=True)
     chart=hist.set_index('ts')[[c for c in ['technical','trend','entry','opportunity','confidence'] if c in hist]].dropna(how='all')
     if not chart.empty: st.line_chart(chart)
 
@@ -491,4 +491,4 @@ else:
 st.subheader('📰 Recent Catalysts / News')
 news=get_news(ticker,12)
 if news.empty: st.caption('No news returned by provider.')
-else: st.dataframe(news,use_container_width=True,hide_index=True)
+else: st.dataframe(news,width='stretch',hide_index=True)

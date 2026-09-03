@@ -87,7 +87,7 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
                 _worker_cap=int(limit_value('max_workers',_user,1) or 1)
                 max_workers=st.slider('Consultas paralelas',1,_worker_cap,min(4,_worker_cap),1,help='Además del límite del plan, todas las llamadas pasan por protección global de proveedores.')
                 force_refresh=st.checkbox('Forzar actualización de datos profundos',value=False,help='Ignora el caché de fundamentals/analyst/event. Usalo solo cuando necesites datos frescos.')
-                if st.button('🧹 Limpiar caché profundo',use_container_width=True):
+                if st.button('🧹 Limpiar caché profundo',width='stretch'):
                     n=clear_deep_cache(); st.success(f'Caché profundo limpiado: {n} archivos.')
             else:
                 top_n=0; max_workers=1; force_refresh=False
@@ -95,7 +95,7 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
         else:
             analysis_mode='Técnico'; depth_mode='Balanceado'; enrich_forward=False
             top_n=0; max_workers=1; force_refresh=False
-        run=st.button('🔎 Escanear',type='primary',use_container_width=True)
+        run=st.button('🔎 Escanear',type='primary',width='stretch')
 
     if run:
         _run_feature=_feature_map.get(analysis_mode,'technical_screener')
@@ -436,7 +436,7 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
                 _raw_cols=['Ticker','Analysis_Mode','Depth_Mode','Opportunity_Score','Preliminary_Score','Quality_Score','Valuation_Score','Revision_Score','Technical_Score','Trend_Score','Entry_Score','RS_Percentile','Asset_Context_Score','Risk_Score','Action']
             _raw_cols=[c for c in _raw_cols if c in results.columns]
             _raw_sort='Technical_Score' if _active_mode=='Técnico' and 'Technical_Score' in results else ('Quality_Score' if _active_mode=='Fundamental' and 'Quality_Score' in results else 'Preliminary_Score')
-            st.dataframe(results[_raw_cols].sort_values(_raw_sort,ascending=False,na_position='last').head(40),use_container_width=True,hide_index=True)
+            st.dataframe(results[_raw_cols].sort_values(_raw_sort,ascending=False,na_position='last').head(40),width='stretch',hide_index=True)
 
     opps=filtered.copy()
     if _active_mode=='Técnico':
@@ -452,7 +452,7 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
     combined_cols=['Ticker','Analysis_Mode','Depth_Mode','Asset_Type','Analysis_Model','Sector','Industry','Equity_Model','Opportunity_Score','Preliminary_Score','Quality_Score','Valuation_Score','Peer_Rank_Score','PE_Sector_Percentile','Revision_Score','Revision_Direction','Technical_Score','Trend_Score','Entry_Score','RS_Percentile','Sector_Score','Asset_Context_Score','Macro_Fit','Macro_Regime','Risk_Score','Confidence_Score','Data_Coverage_Score','Data_Coverage_Label','Event_Risk','Days_to_Earnings','RR_Text','Setup','Action']
 
     visible_cols=[c for c in (technical_cols if _active_mode=='Técnico' else fundamental_cols if _active_mode=='Fundamental' else combined_cols) if c in opps.columns]
-    st.dataframe(opps[visible_cols].head(40),use_container_width=True,hide_index=True)
+    st.dataframe(opps[visible_cols].head(40),width='stretch',hide_index=True)
 
     if _active_mode=='Fundamental':
         leaders=results[results['Fundamental_Leader_Score'].notna()].sort_values('Fundamental_Leader_Score',ascending=False) if 'Fundamental_Leader_Score' in results else pd.DataFrame()
@@ -460,27 +460,27 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
             st.subheader('🏆 Líderes fundamentales')
             section_note('Ranking de calidad del negocio: calidad, resiliencia financiera, calidad de earnings, asignación de capital y ejecución. No premia una acción solo por estar barata y no usa timing técnico.')
             cols=['Ticker','Sector','Industry','Equity_Model','Fundamental_Leader_Score','Quality_Score','Financial_Resilience_Score','Earnings_Quality_Score','Capital_Allocation_Score','Management_Execution_Score','Peer_Rank_Score','Peer_Rank_Source','Peer_Rank_Peer_Count','Data_Coverage_Score','Data_Coverage_Label','Event_Risk']
-            st.dataframe(leaders[[c for c in cols if c in leaders]].head(30),use_container_width=True,hide_index=True)
+            st.dataframe(leaders[[c for c in cols if c in leaders]].head(30),width='stretch',hide_index=True)
     elif _active_mode=='Combinado':
         leaders=results[results['Best_Stock_Score'].notna()].sort_values('Best_Stock_Score',ascending=False) if 'Best_Stock_Score' in results else pd.DataFrame()
         if not leaders.empty:
             st.subheader('🏆 Best Stocks / Leaders')
             section_note('Calidad + revisions + liderazgo. Puede ser excelente empresa y mala entrada hoy.')
             cols=['Ticker','Sector','Industry','Equity_Model','Best_Stock_Score','Quality_Score','Valuation_Score','Revision_Score','Trend_Score','RS_Percentile','Sector_Score','Macro_Fit','Entry_Score','Data_Coverage_Score','Data_Coverage_Label','Event_Risk','RR_Text','Action']
-            st.dataframe(leaders[[c for c in cols if c in leaders]].head(30),use_container_width=True,hide_index=True)
+            st.dataframe(leaders[[c for c in cols if c in leaders]].head(30),width='stretch',hide_index=True)
 
     if _active_mode=='Técnico':
         with st.expander('📊 Tabla técnica completa',expanded=False):
             cols=['Ticker','Asset_Type','Analysis_Model','Sector','Technical_Score','Trend_Score','Entry_Score','RS_Percentile','Sector_Score','Asset_Context_Score','Macro_Fit','Risk_Score','Confidence_Score','Setup','Trend','Price','RSI14','Dist_EMA62_%','Dist_EMA79_%','Dist_SMA200_%','RS_63d_%','Rel_Volume','RR_Text','Action']
-            st.dataframe(results[[c for c in cols if c in results]],use_container_width=True,hide_index=True)
+            st.dataframe(results[[c for c in cols if c in results]],width='stretch',hide_index=True)
     elif _active_mode=='Fundamental':
         with st.expander('📚 Tabla fundamental completa',expanded=False):
             cols=['Ticker','Sector','Industry','Equity_Model','Fundamental_Opportunity_Score','Fundamental_Leader_Score','Quality_Score','Valuation_Score','Revision_Score','Peer_Rank_Score','Peer_Rank_Source','Peer_Rank_Peer_Count','PE_Sector_Percentile','PE_Percentile_Source','PE_Peer_Count','Revision_Direction','Earnings_Quality_Score','Financial_Resilience_Score','Capital_Allocation_Score','Management_Execution_Score','Revenue_Growth','Earnings_Growth','Forward_PE','EV_EBITDA','Price_to_Book','Price_to_Sales','FCF_Yield','Reverse_DCF_Implied_Growth_%','DCF_Fair_Value_Upside_%','Data_Coverage_Score','Data_Coverage_Label','Event_Risk','Days_to_Earnings','Bear_Case_Price','Base_Case_Price','Bull_Case_Price','Scenario_Expected_Return_%','Scenario_Coverage_%']
-            st.dataframe(results[[c for c in cols if c in results]],use_container_width=True,hide_index=True)
+            st.dataframe(results[[c for c in cols if c in results]],width='stretch',hide_index=True)
     else:
         with st.expander('📊 Tabla combinada completa',expanded=False):
             cols=[c for c in combined_cols if c in results]
-            st.dataframe(results[cols],use_container_width=True,hide_index=True)
+            st.dataframe(results[cols],width='stretch',hide_index=True)
 
 
     if st.session_state.get('screener_timing'):
@@ -488,6 +488,6 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
             tm=st.session_state.screener_timing
             st.caption(f"Tiempo total: {tm.get('total_seconds',0):.1f}s")
             perf=pd.DataFrame([{'Etapa':k,'Segundos':v} for k,v in tm.items() if k!='total_seconds'])
-            st.dataframe(perf,use_container_width=True,hide_index=True)
+            st.dataframe(perf,width='stretch',hide_index=True)
 
     st.download_button('⬇️ Descargar análisis completo',results.to_csv(index=False).encode('utf-8'),'professional_screener_v5.csv','text/csv')

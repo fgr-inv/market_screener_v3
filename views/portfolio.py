@@ -31,7 +31,7 @@ with positions_tab:
             st.warning('No se pudieron obtener precios para las posiciones guardadas.')
         elif allocation['status']=='OVER_ALLOCATED':
             st.error(f"Los porcentajes cargados suman {allocation['allocation_total_pct']:.1f}%. Deben sumar como máximo 100%.")
-            st.dataframe(out,use_container_width=True,hide_index=True)
+            st.dataframe(out,width='stretch',hide_index=True)
         else:
             unknown_count=int(pos['sector'].apply(sector_is_missing).sum()) if 'sector' in pos else len(pos)
             if unknown_count:
@@ -75,7 +75,7 @@ with positions_tab:
                 c3.metric('Input mode',allocation['basis'])
             c4.metric('Positions',len(out))
             if coverage_note: st.caption(coverage_note)
-            st.dataframe(out.sort_values('Weight %',ascending=False),use_container_width=True,hide_index=True)
+            st.dataframe(out.sort_values('Weight %',ascending=False),width='stretch',hide_index=True)
             if allocation['basis']=='QUANTITY':
                 st.caption('Podés conservar cantidades o guardar estos pesos actuales como porcentajes para que el análisis no dependa del capital total.')
                 if st.button('Convertir pesos actuales a porcentajes'):
@@ -106,7 +106,7 @@ with watch:
                 rows.append({'Ticker':t,'Type':typ,'Price':r['Price'],'Trend':r['Trend'],'Trend Score':r['Trend_Score'],'Entry Score':r['Entry_Score'],'Risk Score':r['Risk_Score'],'R/R':r['RR_Text'],'Setup':r['Setup'],'Action':action})
             except Exception as e:
                 st.caption(f'{t}: datos incompletos ({type(e).__name__})')
-        if rows: st.dataframe(pd.DataFrame(rows),use_container_width=True,hide_index=True)
+        if rows: st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
     else:
         st.info('Agregá tickers para construir la watchlist.')
 
@@ -127,15 +127,15 @@ with thesis_tab:
     review=c3.date_input('Próxima revisión',value=(old_review.date() if pd.notna(old_review) else date.today()))
     note=st.text_input('Nota',value=str(old.get('note','') or ''))
     c1,c2=st.columns(2)
-    if c1.button('Guardar tesis',type='primary',use_container_width=True):
+    if c1.button('Guardar tesis',type='primary',width='stretch'):
         try:
             upsert_thesis(ticker,thesis,catalysts,invalidation,target,review,status,note,user_id=uid)
             st.success('Tesis guardada.'); st.rerun()
         except Exception as exc: st.error(f'No se pudo guardar: {exc}')
-    if c2.button('Eliminar tesis',use_container_width=True):
+    if c2.button('Eliminar tesis',width='stretch'):
         try:
             delete_thesis(ticker,user_id=uid); st.rerun()
         except Exception as exc: st.error(f'No se pudo eliminar: {exc}')
     all_theses=load_theses(user_id=uid)
     if not all_theses.empty:
-        st.subheader('Tesis guardadas'); st.dataframe(all_theses,use_container_width=True,hide_index=True)
+        st.subheader('Tesis guardadas'); st.dataframe(all_theses,width='stretch',hide_index=True)
