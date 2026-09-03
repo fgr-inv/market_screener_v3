@@ -18,8 +18,22 @@ from core.opportunity_discovery import load_active_watchlist_tickers
 from core.storage import load_positions, load_theses
 
 
-def news_run_key(now):
+def news_scan_mode(value=None):
+    return 'priority' if str(value if value is not None else os.getenv('NEWS_SCAN_MODE','full')).lower()=='priority' else 'full'
+
+
+def news_run_key(now,scan_mode='full'):
+    mode=news_scan_mode(scan_mode)
+    if mode=='priority':
+        minute=30 if now.minute>=30 else 0
+        return f"news-priority-{now.strftime('%Y-%m-%d-%H')}-{minute:02d}"
     return f"news-{now.strftime('%Y-%m-%d-%H')}"
+
+
+def select_news_tickers(holdings,watchlist,scan_mode='full',limit=40):
+    primary=list(dict.fromkeys(str(t).upper() for t in (holdings or []) if str(t).strip()))
+    secondary=list(dict.fromkeys(str(t).upper() for t in (watchlist or []) if str(t).strip()))
+    return (primary if news_scan_mode(scan_mode)=='priority' else list(dict.fromkeys(primary+secondary)))[:int(limit)]
 
 
 def should_fetch_sec(now,manual=False):
@@ -51,8 +65,9 @@ def _scan_id(events):
 
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
-    now=datetime.now(ZoneInfo('America/New_York')); run_key=news_run_key(now)
-    previous=load_desk_output(uid,'news_catalyst_scan',run_key)
+    now=datetime.now(ZoneInfo('America/New_York')); scan_mode=news_scan_mode(); run_key=news_run_key(now,scan_mode)
+    output_type='news_catalyst_priority_scan' if scan_mode=='priority' else 'news_catalyst_scan'
+    previous=load_desk_output(uid,output_type,run_key)
     if previous and previous.get('payload'):
         payload=previous['payload']; brief=payload.get('brief') or {}
         notification=notify_material_brief(uid,brief,payload.get('review_run_key') or run_key)
@@ -64,19 +79,28 @@ def main():
     positions=load_positions(user_id=uid)
     holdings=[] if positions.empty else positions['ticker'].dropna().astype(str).str.upper().tolist()
     watchlist=load_active_watchlist_tickers(uid,limit=30)
-    tickers=list(dict.fromkeys(holdings+watchlist))[:40]
+    tickers=select_news_tickers(holdings,watchlist,scan_mode,limit=40)
     if not tickers:
-        print('News scan skipped: no portfolio or active watchlist tickers'); return 0
+        payload={'shadow_mode':True,'status':'SKIPPED_NO_TICKERS','scan_mode':scan_mode,
+                 'market_time':now.isoformat(),'monitored_tickers':[],
+                 'portfolio_tickers':holdings,'watchlist_tickers':watchlist,
+                 'provider_status':{'providers':[]},'stories':[],'detected_events':[],
+                 'actionable_events':[],'material_events':[],'suppressed_events':[],
+                 'brief':{'headline':'No portfolio or active watchlist tickers','material':False,
+                          'material_reasons':[],'approval_boundary':'Research only. No order was created.'}}
+        save_desk_output(uid,output_type,payload,run_key=run_key)
+        print(f'News {scan_mode} scan skipped: no eligible tickers'); return 0
 
     manual=os.getenv('GITHUB_EVENT_NAME','').lower()=='workflow_dispatch'
     stories,provider_status=collect_catalyst_stories(
-        tickers,include_sec=should_fetch_sec(now,manual),lookback_hours=story_lookback_hours(now))
+        tickers,include_sec=bool(scan_mode=='full' and should_fetch_sec(now,manual)),
+        lookback_hours=story_lookback_hours(now))
     classified=classify_catalyst_stories(stories,holdings,_thesis_map(uid))
     detected=[catalyst_story_event(row) for row in classified
               if row.get('category')!='GENERAL' and (int(row.get('severity') or 0)>=4 or row.get('portfolio'))]
     actionable,suppressed=filter_actionable_events(uid,detected,cooldown_minutes=0,now=now)
     material_events=[event for event in actionable if int(event.get('severity') or 0)>=4]
-    payload={'shadow_mode':True,'status':'NO_NEW_MATERIAL_CATALYST','market_time':now.isoformat(),
+    payload={'shadow_mode':True,'status':'NO_NEW_MATERIAL_CATALYST','scan_mode':scan_mode,'market_time':now.isoformat(),
              'monitored_tickers':tickers,'portfolio_tickers':holdings,'watchlist_tickers':watchlist,
              'provider_status':provider_status,'stories':classified[:120],'detected_events':detected,
              'actionable_events':actionable,'material_events':material_events,
@@ -98,12 +122,12 @@ def main():
         else:
             state_result=record_event_state(uid,actionable,now=now)
     payload['notification']=notification; payload['event_state']=state_result
-    save_desk_output(uid,'news_catalyst_scan',payload,run_key=run_key)
+    save_desk_output(uid,output_type,payload,run_key=run_key)
     append_agent_audit(uid,'news_catalyst_scan',{'run_key':run_key,'monitored':len(tickers),'stories':len(classified),
                        'detected':len(detected),'actionable':len(actionable),'material':len(material_events),
-                       'suppressed':len(suppressed),
+                       'suppressed':len(suppressed),'scan_mode':scan_mode,
                        'providers':provider_status.get('providers',[]),'notification':notification,'shadow_mode':True})
-    print(f"News scan: stories={len(classified)} detected={len(detected)} actionable={len(actionable)} "
+    print(f"News {scan_mode} scan: stories={len(classified)} detected={len(detected)} actionable={len(actionable)} "
           f"notification={notification.get('status')}")
     return 1 if notification.get('status')=='FAILED' or state_result.get('status')=='FAILED' else 0
 

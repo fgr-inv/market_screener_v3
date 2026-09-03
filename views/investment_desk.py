@@ -18,6 +18,7 @@ from core.skill_calibration import build_skill_calibration_review,load_latest_sk
 from core.skill_governance import (build_paper_readiness_report,load_skill_governance,
                                    save_skill_governance)
 from core.production_storage import storage_mode
+from core.news_catalyst_data import merge_news_scan_records
 
 hero('Investment Desk','CIO + Market/Sector + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. A broad daily hunt discovers candidates, the news agent monitors portfolio + persistent watchlist, and specialists wake only for relevant events. It never sends broker orders.')
@@ -48,17 +49,21 @@ if hunt and hunt.get('payload'):
         with st.expander('Diversified discovery shortlist',expanded=False):
             st.dataframe(pd.DataFrame(shortlist),width='stretch',hide_index=True)
     if monitored:
-        st.caption('Persistent 30-minute watchlist: '+', '.join(monitored))
+        st.caption('Persistent 15-minute watchlist: '+', '.join(monitored))
 
 news_scan=load_latest_desk_output(uid,'news_catalyst_scan')
-if news_scan and news_scan.get('payload'):
-    npayload=news_scan['payload']; stories=npayload.get('stories') or []; actionable_news=npayload.get('actionable_events') or []
-    material_news=npayload.get('material_events') or [event for event in actionable_news if int(event.get('severity') or 0)>=4]
-    provider_rows=(npayload.get('provider_status') or {}).get('providers') or []
+priority_news_scan=load_latest_desk_output(uid,'news_catalyst_priority_scan')
+merged_news=merge_news_scan_records([priority_news_scan,news_scan])
+if news_scan or priority_news_scan:
+    stories=merged_news['stories']; actionable_news=merged_news['actionable_events']
+    material_news=merged_news['material_events']; provider_rows=merged_news['provider_rows']
     st.subheader('News & Catalyst Intelligence')
-    st.caption(f"Portfolio + persistent watchlist · {news_scan.get('created_at','N/D')} · SHADOW MODE")
+    st.caption(
+        f"Portfolio 30 min: {(priority_news_scan or {}).get('created_at','N/D')} · "
+        f"Portfolio + watchlist 60 min: {(news_scan or {}).get('created_at','N/D')} · SHADOW MODE"
+    )
     c1,c2,c3,c4=st.columns(4)
-    c1.metric('Tickers monitored',len(npayload.get('monitored_tickers') or []))
+    c1.metric('Tickers monitored',len(merged_news['monitored_tickers']))
     c2.metric('Fresh stories',len(stories))
     c3.metric('Material events',len(material_news))
     c4.metric('SEC filings',sum(row.get('source_type')=='SEC_FILING' for row in stories))

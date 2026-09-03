@@ -11,6 +11,7 @@ from core.shadow_validation import load_shadow_decisions, load_shadow_outcomes
 from core.skill_calibration import (build_skill_calibration_review, load_skill_calibration_review,
                                     save_skill_calibration_review)
 from core.skill_governance import build_paper_readiness_report, load_skill_governance
+from core.automation_health import record_automation_heartbeat
 
 
 def main():
@@ -22,6 +23,8 @@ def main():
     iso = now.isocalendar()
     run_key = f'skill-calibration-{iso.year}-W{iso.week:02d}'
     if load_skill_calibration_review(uid, run_key):
+        record_automation_heartbeat(uid, 'skill_calibration', status='REUSED',
+                                    details={'run_key': run_key})
         print('Skill calibration skipped: review already exists for this ISO week.')
         return 0
     decisions = load_shadow_decisions(uid)
@@ -42,6 +45,8 @@ def main():
     if persistence['status'] == 'FAILED':
         print('ERROR: skill calibration was not fully persisted; run remains retriable.')
         return 1
+    record_automation_heartbeat(uid, 'skill_calibration', status='CURRENT',
+                                details={'run_key': run_key, 'review_status': review['status']})
     print(f"Skill calibration: status={review['status']} eligible={review['eligible_segments']} "
           f"proposals={len(review['proposals'])}")
     return 0

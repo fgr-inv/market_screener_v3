@@ -99,7 +99,7 @@ def test_v1133_workflows_and_ui_remain_research_only():
     assert tuple(map(int,version.split('.'))) >= (11,33)
     assert 'run_desk_review' in worker and 'qualify_verified_opportunities' in worker
     assert "cron: '10 23 * * 1-5'" in workflow
-    assert "cron: '*/30 13-21 * * 1-5'" in intraday
-    assert 'Daily Opportunity Hunt' in view and 'Persistent 30-minute watchlist' in view
+    assert "cron: '*/15 13-21 * * 1-5'" in intraday
+    assert 'Daily Opportunity Hunt' in view and 'Persistent 15-minute watchlist' in view
     assert 'Background Desk Activity' in alert_view and "load_latest_desk_output(uid,'event_scan')" in alert_view
     assert all(term not in worker for term in ('TradingClient','place_order','submit_order','alpaca'))

@@ -12,6 +12,7 @@ from core.production_storage import cloud_available,storage_mode,ensure_producti
 from core.point_in_time import point_in_time_status
 from core.monitoring import recent_errors
 from core.ui import hero,section_note
+from core.desk_store import load_desk_output
 
 hero('System Health','Proveedores, persistencia, snapshots, errores y data integrity.','Observability V8')
 user=current_user()
@@ -24,6 +25,20 @@ c1.metric('Active model',model_label())
 c2.metric('Storage',storage_mode())
 c3.metric('Point-in-time index','AVAILABLE' if point_in_time_status('SP500')['available'] else 'MISSING')
 c4.metric('Alerts',len(list_alerts(enabled_only=True)))
+
+automation=load_desk_output(user['user_id'],'automation_health_state','current') or {}
+automation_payload=automation.get('payload') or {}
+st.subheader('Automation freshness')
+if not automation_payload:
+    st.info('El watchdog todavía no registró su primera evaluación.')
+else:
+    status=automation_payload.get('status','PENDING')
+    (st.success if status=='HEALTHY' else st.error)(f'Automation status: {status}')
+    checks=pd.DataFrame(automation_payload.get('checks') or [])
+    if not checks.empty:
+        columns=['label','status','last_success_at','age_minutes','detail']
+        st.dataframe(checks[[column for column in columns if column in checks]],width='stretch',hide_index=True)
+    st.caption(f"Last watchdog check: {automation.get('created_at','N/D')}")
 
 if cloud_available():
     ok,msg=ensure_production_schema()

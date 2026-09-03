@@ -3,8 +3,9 @@ name: News and catalyst monitor
 on:
   workflow_dispatch:
   schedule:
-    # Hourly coverage from pre-market through after-hours across New York DST changes.
+    # Full portfolio/watchlist scan hourly plus a portfolio-only scan halfway between.
     - cron: '5 11-23 * * 1-5'
+    - cron: '35 11-23 * * 1-5'
 
 permissions:
   contents: read
@@ -36,4 +37,5 @@ jobs:
           DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SEC_USER_AGENT: InvestmentDesk fgr-inv@users.noreply.github.com
+          NEWS_SCAN_MODE: ${{ github.event.schedule == '35 11-23 * * 1-5' && 'priority' || 'full' }}
         run: python -m scripts.run_news_catalyst_monitor

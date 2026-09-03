@@ -160,7 +160,7 @@ def _payload_tickers(payload):
 
 
 def load_active_watchlist_tickers(user_id, limit=30, loader=None):
-    """Load the durable generated watchlist used by the 30-minute monitor."""
+    """Load the durable generated watchlist used by the 15-minute market monitor."""
     if loader is None:
         from core.desk_store import load_latest_desk_output
         loader=load_latest_desk_output

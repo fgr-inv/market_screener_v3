@@ -116,7 +116,8 @@ def test_v11361_contract_and_manual_daily_retry():
     daily=Path('scripts/run_daily_cio_brief.py').read_text(encoding='utf-8')
     alert_worker=Path('scripts/run_alerts.py').read_text(encoding='utf-8')
     saved_alerts=Path('views/saved_alerts.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "11.36.1"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(int(part) for part in version.split('.')) >= (11,36,1)
     assert "GITHUB_EVENT_NAME" in daily and 'notify_daily_cio_brief' in daily
     assert 'build_discord_rule_alert' in alert_worker
     assert 'build_discord_channel_test' in saved_alerts

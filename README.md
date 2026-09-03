@@ -14,7 +14,7 @@ V8 focuses on reliability, persistence, auditability and portfolio risk rather t
 
 ### Persistent alerts
 - Alert definitions support `cooldown_minutes` and `repeat_while_true`.
-- Edge-triggering: default alert behavior is `FALSE -> TRUE`, avoiding hourly spam.
+- Edge-triggering: default alert behavior is `FALSE -> TRUE`, avoiding repeated-run spam.
 - Persistent alert state: last hit, last trigger, last evaluation, trigger count.
 - `DATABASE_URL` (Postgres/Supabase) is preferred for shared Streamlit/GitHub state.
 - CSV + GitHub commit remains a durable fallback when cloud storage is not configured.
@@ -464,8 +464,8 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 
 ## V11.29 — Background Desk hardening
 - Expanded the cheap detector with typed cached events for price moves, abnormal volume, technical state/score changes, fundamental/event changes, stale snapshots, and market-regime changes.
-- Added one bounded 5-minute batch for current holdings plus top cached candidates (maximum 25 symbols), so the 30-minute worker can detect intraday moves/volume while avoiding a full-universe or per-agent refresh.
-- Added deterministic agent routing: scheduled scans invoke only the specialists required by each event; a large move can escalate to Fundamental, Portfolio, and Market context without turning every 30-minute scan into a full-universe refresh.
+- Added one bounded 5-minute batch for current holdings plus top cached candidates (maximum 25 symbols), so the recurring worker can detect intraday moves/volume while avoiding a full-universe or per-agent refresh.
+- Added deterministic agent routing: scheduled scans invoke only the specialists required by each event; a large move can escalate to Fundamental, Portfolio, and Market context without turning every recurring scan into a full-universe refresh.
 - Added user-scoped persistent event fingerprints and cooldown state in Postgres, with a private local fallback. Identical events are deduplicated and changed events respect cooldowns.
 - Added idempotent run keys for scheduled reviews, daily briefs, and CIO alert deliveries, so GitHub Actions retries do not duplicate work or notifications.
 - Upgraded the Daily CIO Brief to explicit Market Regime, Principal Risk, Top Opportunities, Portfolio Items, Thesis Changes, Avoid/Conflicting, and Decisions Needed sections.
@@ -507,7 +507,7 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - The daily snapshot now covers the deduplicated S&P 500, Nasdaq 100 and liquid fallback universe (up to 650 rows) instead of stopping at the first 220 S&P names.
 - A post-close Opportunity Hunt applies cheap technical, risk, confidence, event-risk and diversification gates to the broad snapshot, then sends at most 18 candidates to full Technical + Fundamental + Portfolio + Market + Verification review.
 - A name is labeled `VERIFIED_CANDIDATE` only when both specialists are verified, Technical is `SETUP/WATCH`, Fundamental is `IMPROVING/INTACT`, priority is at least 60 and contradictions remain bounded. No candidate is preferable to a weak candidate.
-- The generated daily watchlist is persisted per user. The 30-minute market-session worker now prioritizes portfolio holdings, then that persistent watchlist, then unused capacity from cached screener leaders, in one bounded batch of at most 40 symbols.
+- The generated daily watchlist is persisted per user. The 15-minute market-session worker prioritizes portfolio holdings, then that persistent watchlist, then unused capacity from cached screener leaders, in one bounded batch of at most 40 symbols.
 - The pre-market CIO brief reuses the active daily watchlist. The Investment Desk shows universe size, deep-review shortlist, fully verified candidates and the exact symbols under intraday monitoring.
 - The broad scan runs once per weekday, deep fundamental work is bounded to the shortlist, and event routing still wakes specialists only for material changes. This preserves the shared cache/data-budget policy.
 - V11.33 remains Shadow Mode only. It discovers, verifies, ranks, monitors and alerts; it contains no broker, order, fill, paper-trading or autonomous execution path.
@@ -536,13 +536,13 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Existing quantity positions can be converted in one click to their current calculated percentage weights without re-entering the portfolio.
 
 ## V11.36 — News & Catalyst Intelligence Agent
-- Adds an hourly, headless monitor for the current user's portfolio plus persistent Investment Desk watchlist. It runs in GitHub Actions while Streamlit is closed.
+- Adds a headless monitor for the current user's portfolio plus persistent Investment Desk watchlist. V11.36.2 checks holdings every 30 minutes and the combined portfolio/watchlist every hour while Streamlit is closed.
 - Uses bounded FMP stock-news and issuer press-release batches, with a Yahoo Finance fallback when the configured FMP route returns no news. Official SEC submissions are checked at bounded morning/afternoon slots and on manual runs.
 - Rejects undated, stale and implausibly future items before analysis, preserves publisher/date/source URL, deduplicates syndicated headlines and prefers issuer/SEC primary evidence when available.
 - Classifies earnings, guidance, M&A, regulatory/legal, capital structure, cybersecurity, management, product/contract, capital return and analyst-rating events with explicit severity, direction and materiality.
 - Compares each material story with saved thesis catalysts and invalidation conditions. Matches are labeled as potential evidence for human review; the agent never rewrites a thesis automatically.
 - Routes material events to the News agent and wakes Fundamental, Portfolio or CIO context only when the event type and severity require them.
-- Persists scan outputs, event fingerprints and the agent handoff audit in the user-scoped database. Repeated hourly scans do not resend the same story, while failed Discord delivery remains retriable.
+- Persists scan outputs, event fingerprints and the agent handoff audit in the user-scoped database. Repeated scans do not resend the same story, while failed Discord delivery remains retriable.
 - Material alerts include the linked source in Discord, appear in Alert Center and Investment Desk, and are reused by the next pre-market CIO brief.
 - News decisions enter the existing 1/5/20-day Shadow ledger; the News agent uses five trading days as its primary calibration horizon.
 - Migrates Streamlit components from deprecated `use_container_width` to `width`, removing the repeated console warning on current Streamlit versions.
@@ -559,3 +559,13 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Discord payloads disable automatic mentions and remain below the official per-field, 25-field and 6,000-character embed limits. Slack and generic webhooks retain a structured plain-text fallback.
 - The Saved Alerts test button now previews the new Discord format without fabricating a market signal.
 - V11.36.1 changes presentation and delivery only. It remains research-only Shadow Mode with no broker execution path.
+
+### V11.36.2 — Priority Refresh + Automation Watchdog
+- Saved alerts and the bounded portfolio/watchlist event scan run every 15 minutes during the US market window. Saved alerts keep hourly off-hours and weekend coverage for crypto and persistent price rules.
+- News is tiered by information value: current portfolio holdings are checked every 30 minutes, while the broader persistent watchlist remains hourly. Only the full hourly pass performs the bounded SEC schedule.
+- Priority and full news scans use separate idempotent run keys and storage records, then merge without duplicate stories or events in Investment Desk, Alert Center, Catalysts and the next CIO brief.
+- Full-universe discovery remains once per weekday after the close; fundamental refreshes remain filing/event-driven or cache-governed instead of being wastefully repeated intraday.
+- A deterministic Automation Watchdog runs after the alert cycle, checks only processes already due for the current New York market time and persists one current health state.
+- Discord receives one incident alert when a process is missing, stale or failed, a reminder only after six hours, and one recovery notice. Alert Center shows the same `HEALTHY`/`DEGRADED` state.
+- Frequent heartbeats overwrite a fixed latest record, preventing the health system from creating an unbounded database row per 15-minute run.
+- No new agent, paid provider, secret or broker capability is introduced. V11.36.2 remains research-only Shadow Mode.

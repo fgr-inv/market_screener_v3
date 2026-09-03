@@ -14,15 +14,21 @@ from core.desk_notifications import notify_daily_cio_brief
 from core.agent_audit import append_agent_audit
 
 def _recent_news_context(user_id,now,max_age_hours=30):
-    record=load_latest_desk_output(user_id,'news_catalyst_scan') or {}; payload=record.get('payload') or {}
-    try:
-        created=pd.Timestamp(record.get('created_at'))
-        if created.tzinfo is None: created=created.tz_localize('UTC')
-        current=pd.Timestamp(now)
-        if current.tzinfo is None: current=current.tz_localize('America/New_York')
-        if (current.tz_convert('UTC')-created.tz_convert('UTC')).total_seconds()/3600>max_age_hours: return [],{}
-    except Exception: return [],{}
-    material_stories=[row for row in payload.get('stories') or [] if row.get('material')]
+    current=pd.Timestamp(now)
+    if current.tzinfo is None: current=current.tz_localize('America/New_York')
+    material_stories=[]; seen=set()
+    for output_type in ('news_catalyst_priority_scan','news_catalyst_scan'):
+        record=load_latest_desk_output(user_id,output_type) or {}; payload=record.get('payload') or {}
+        try:
+            created=pd.Timestamp(record.get('created_at'))
+            if created.tzinfo is None: created=created.tz_localize('UTC')
+            if (current.tz_convert('UTC')-created.tz_convert('UTC')).total_seconds()/3600>max_age_hours: continue
+        except Exception: continue
+        for row in payload.get('stories') or []:
+            identity=str(row.get('story_id') or row.get('url') or (row.get('ticker'),row.get('title')))
+            if row.get('material') and identity not in seen:
+                seen.add(identity); material_stories.append(row)
+    material_stories.sort(key=lambda row:row.get('published_at') or '',reverse=True)
     events=[catalyst_story_event(row) for row in material_stories]
     grouped={}
     for event in events:

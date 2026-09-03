@@ -3,7 +3,7 @@ import pandas as pd
 
 
 def should_notify(hit, state=None, cooldown_minutes=240, repeat_while_true=False, now=None):
-    """Pure transition logic used by the hourly alert runner.
+    """Pure transition logic used by the recurring alert runner.
 
     Alerts fire on FALSE->TRUE. When repeat_while_true=True they may repeat only
     after cooldown_minutes. A FALSE evaluation resets the edge state.

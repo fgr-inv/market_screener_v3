@@ -22,7 +22,7 @@ def test_event_detector_no_signal_is_valid():
 
 def test_background_workflow_exists_and_is_shadow_only():
     text=open('.github/workflows/investment_desk.yml',encoding='utf-8').read()
-    assert '*/30 13-21' in text
+    assert '*/15 13-21' in text
     assert 'run_investment_desk' in text
     daily=open('.github/workflows/daily_cio_brief.yml',encoding='utf-8').read()
     assert 'run_daily_cio_brief' in daily

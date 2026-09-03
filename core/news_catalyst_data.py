@@ -29,7 +29,7 @@ def _secret(name):
         return ''
 
 
-def _session(user_agent='market-screener/11.36'):
+def _session(user_agent='market-screener/11.36.2'):
     session=requests.Session()
     retry=Retry(total=3,connect=3,read=3,backoff_factor=.5,
                 status_forcelist=(429,500,502,503,504),allowed_methods=frozenset(['GET']))
@@ -256,3 +256,28 @@ def collect_catalyst_stories(tickers,include_sec=False,lookback_hours=36,now=Non
     fresh.sort(key=lambda row:row.get('published_at') or '',reverse=True)
     return fresh,{'providers':statuses,'requested_tickers':len(set(tickers)),'fresh_stories':len(fresh),
                   'include_sec':bool(include_sec),'lookback_hours':float(lookback_hours)}
+
+
+def merge_news_scan_records(records):
+    """Merge latest full/priority scans for UI and CIO consumption without duplicates."""
+    valid=[record for record in (records or []) if record and record.get('payload')]
+    stories=[]; events=[]; providers=[]; tickers=[]; scans=[]; story_ids=set(); event_ids=set()
+    for record in valid:
+        payload=record.get('payload') or {}; mode=str(payload.get('scan_mode') or 'full')
+        scans.append({'scan_mode':mode,'created_at':record.get('created_at'),'status':payload.get('status')})
+        tickers.extend(payload.get('monitored_tickers') or [])
+        for story in payload.get('stories') or []:
+            identity=str(story.get('story_id') or story.get('url') or (story.get('ticker'),story.get('title')))
+            if identity not in story_ids: story_ids.add(identity); stories.append(story)
+        for event in payload.get('actionable_events') or []:
+            identity=str(event.get('fingerprint') or event.get('event_key') or event)
+            if identity not in event_ids: event_ids.add(identity); events.append(event)
+        for provider in (payload.get('provider_status') or {}).get('providers') or []:
+            providers.append({**provider,'scan_mode':mode})
+    stories.sort(key=lambda row:row.get('published_at') or '',reverse=True)
+    events.sort(key=lambda row:(int(row.get('severity') or 0),
+                                str(((row.get('metrics') or {}).get('story') or {}).get('published_at') or '')),reverse=True)
+    material=[event for event in events if int(event.get('severity') or 0)>=4]
+    return {'stories':stories,'actionable_events':events,'material_events':material,
+            'provider_rows':providers,'monitored_tickers':list(dict.fromkeys(str(t).upper() for t in tickers if t)),
+            'scans':scans}

@@ -14,6 +14,19 @@ from core.alert_state import should_notify
 from core.monitoring import log_event,log_exception
 from core.production_storage import storage_mode
 from core.notification_settings import get_user_webhook
+from core.automation_health import record_automation_heartbeat
+
+
+def _heartbeat_users(alerts):
+    users=[str(os.getenv('DEV_USER_ID','local-user') or 'local-user')]
+    if alerts is not None and not alerts.empty and 'user_id' in alerts:
+        users.extend(alerts['user_id'].dropna().astype(str).tolist())
+    return list(dict.fromkeys(user for user in users if user))
+
+
+def _record_alert_heartbeats(alerts,status,details):
+    for user_id in _heartbeat_users(alerts):
+        record_automation_heartbeat(user_id,'saved_alerts',status=status,details=details)
 
 
 def main():
@@ -22,6 +35,7 @@ def main():
         return 2
     alerts=list_alerts(enabled_only=True)
     if alerts.empty:
+        _record_alert_heartbeats(alerts,'IDLE',{'enabled_alerts':0,'evaluated':0})
         print('No enabled alerts'); return 0
     ticks=alerts['ticker'].dropna().astype(str).str.upper().unique().tolist()
     symbols=list(dict.fromkeys(ticks+['SPY']))
@@ -59,6 +73,10 @@ def main():
         except Exception as exc:
             errors+=1; print(f'ERROR {ticker}: {exc}'); log_exception('alert_evaluation_error',exc,alert_id=aid,ticker=ticker)
     print(f'Finished. evaluated={evaluated} attempted={attempted} delivered={delivered_count} errors={errors}')
+    _record_alert_heartbeats(alerts,'CURRENT' if errors==0 else 'PARTIAL',{
+        'enabled_alerts':len(alerts),'evaluated':evaluated,'attempted':attempted,
+        'delivered':delivered_count,'errors':errors,
+    })
     # A single provider/ticker error should not kill all alerts; systemic failures are visible in logs.
     return 0 if evaluated>0 or errors==0 else 1
 
