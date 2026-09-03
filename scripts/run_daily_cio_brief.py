@@ -10,6 +10,8 @@ from core.desk_store import load_desk_output,load_latest_desk_output
 from core.agent_router import full_review_plan
 from core.opportunity_discovery import load_active_watchlist_tickers
 from core.news_catalyst_agent import catalyst_story_event
+from core.desk_notifications import notify_daily_cio_brief
+from core.agent_audit import append_agent_audit
 
 def _recent_news_context(user_id,now,max_age_hours=30):
     record=load_latest_desk_output(user_id,'news_catalyst_scan') or {}; payload=record.get('payload') or {}
@@ -31,8 +33,9 @@ def _recent_news_context(user_id,now,max_age_hours=30):
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
     now=datetime.now(ZoneInfo('America/New_York'))
-    if now.weekday()>=5: print('CIO brief skipped: weekend'); return 0
-    if not (now.hour==7 and 20 <= now.minute <= 40):
+    manual=os.getenv('GITHUB_EVENT_NAME','').lower()=='workflow_dispatch'
+    if now.weekday()>=5 and not manual: print('CIO brief skipped: weekend'); return 0
+    if not manual and not (now.hour==7 and 20 <= now.minute <= 40):
         print('CIO brief skipped: not the 07:30 ET slot'); return 0
     pos=load_positions(user_id=uid); holdings=[] if pos.empty else pos['ticker'].dropna().astype(str).str.upper().tolist()
     snap=load_latest_snapshot('latest_screener'); candidates=[]
@@ -46,13 +49,19 @@ def main():
     run_key=f"daily-{now.date().isoformat()}"
     previous=load_desk_output(uid,'daily_cio_brief',run_key)
     if previous and previous.get('payload'):
-        print('CIO brief skipped: already generated for this market date'); return 0
+        notification=notify_daily_cio_brief(uid,previous['payload'].get('brief') or {},run_key)
+        print(f"CIO brief reused | daily_notification={notification.get('status')}")
+        return 1 if notification.get('status')=='FAILED' else 0
     events,news_by_ticker=_recent_news_context(uid,now)
     plan=full_review_plan(tickers)
     for ticker in news_by_ticker:
         if ticker in plan['ticker_agents'] and 'news' not in plan['ticker_agents'][ticker]: plan['ticker_agents'][ticker].append('news')
     out=run_desk_review(uid,tickers,False,'daily_cio_brief',run_key=run_key,agent_plan=plan,
                         events=events,news_by_ticker=news_by_ticker)
-    print(out['brief']['headline']); return 0
+    notification=notify_daily_cio_brief(uid,out['brief'],run_key)
+    append_agent_audit(uid,'daily_cio_notification',{'run_key':run_key,'notification':notification,
+                       'shadow_mode':True,'no_execution':True})
+    print(out['brief']['headline']); print(f"daily_notification={notification.get('status')}")
+    return 1 if notification.get('status')=='FAILED' else 0
 
 if __name__=='__main__': raise SystemExit(main())

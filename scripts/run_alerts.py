@@ -9,7 +9,7 @@ if str(ROOT) not in sys.path: sys.path.insert(0,str(ROOT))
 
 from core.storage import list_alerts,get_alert_state,set_alert_state
 from core.market_data import download_prices
-from core.alerts_engine import evaluate_rule,send_webhook,webhook_status
+from core.alerts_engine import evaluate_rule,send_webhook,webhook_status,build_discord_rule_alert
 from core.alert_state import should_notify
 from core.monitoring import log_event,log_exception
 from core.production_storage import storage_mode
@@ -45,7 +45,9 @@ def main():
             if notify:
                 attempted+=1
                 target=get_user_webhook(alert.get('user_id'))
-                delivered=send_webhook(message,url=target) if target else False
+                delivered=(send_webhook(message,url=target,
+                                        discord_embed=build_discord_rule_alert(alert,message,reason,now))
+                           if target else False)
                 delivered_count+=int(delivered)
                 print(f'HIT [{reason}] {message} | webhook={delivered}')
             else:

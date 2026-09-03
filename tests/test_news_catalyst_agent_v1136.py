@@ -151,6 +151,7 @@ def test_v1136_workflow_ui_and_shadow_boundary():
     assert "cron: '5 11-23 * * 1-5'" in workflow
     assert 'FMP_API_KEY' in workflow and 'SEC_USER_AGENT' in workflow
     assert 'News & Catalyst Intelligence' in desk
-    assert 'APP_VERSION = "11.36"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(int(part) for part in version.split('.')) >= (11,36)
     assert all(term not in worker.lower() for term in ('tradingclient','place_order','submit_order','alpaca'))
     assert 'use_container_width' not in '\n'.join(path.read_text(encoding='utf-8') for path in Path('views').glob('*.py'))

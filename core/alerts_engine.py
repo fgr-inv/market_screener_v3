@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 import requests
 import pandas as pd
 
@@ -54,13 +55,63 @@ def webhook_status(url=''):
     return {'configured':True,'provider':provider}
 
 
-def send_webhook(message, url=''):
+RULE_REPORT_LABELS={
+    'PRICE_BELOW':'Precio por debajo del nivel','PRICE_ABOVE':'Precio por encima del nivel',
+    'ENTRY_SCORE_ABOVE':'Entry Score por encima del mínimo','RR_ABOVE':'R/R por encima del mínimo',
+    'EMA62_DISTANCE':'Precio cerca de EMA62','EMA79_DISTANCE':'Precio cerca de EMA79',
+}
+
+
+def _report_clip(value,limit):
+    text=str(value or '').strip().replace('\x00','')
+    return text if len(text)<=limit else text[:max(0,limit-1)].rstrip()+'…'
+
+
+def build_discord_rule_alert(alert,message,trigger_reason='EDGE',now=None):
+    """Build a compact saved-alert embed without interpreting it as a trade signal."""
+    ticker=str(alert.get('ticker') or 'ACTIVO').upper(); rule=str(alert.get('rule_type') or 'ALERTA')
+    reason={'EDGE':'Nueva activación','COOLDOWN':'Repetición después del cooldown'}.get(str(trigger_reason),str(trigger_reason))
+    fields=[{'name':'Condición','value':_report_clip(RULE_REPORT_LABELS.get(rule,rule.replace('_',' ').title()),1024),'inline':True},
+            {'name':'Umbral configurado','value':_report_clip(alert.get('threshold','N/D'),1024),'inline':True},
+            {'name':'Tipo de aviso','value':_report_clip(reason,1024),'inline':True}]
+    note=str(alert.get('note') or '').strip()
+    if note: fields.append({'name':'Tu nota','value':_report_clip(note,1024),'inline':False})
+    fields.append({'name':'Próximo paso','value':'Confirmar el dato y revisar el activo en la aplicación antes de tomar una decisión.','inline':False})
+    stamp=now if isinstance(now,datetime) else datetime.now(timezone.utc)
+    if stamp.tzinfo is None: stamp=stamp.replace(tzinfo=timezone.utc)
+    color=0x2ECC71 if rule in {'PRICE_ABOVE','ENTRY_SCORE_ABOVE','RR_ABOVE'} else 0xF39C12 if rule.startswith('EMA') else 0x3498DB
+    return {'author':{'name':'Market Screener Pro · Saved Alerts'},'title':_report_clip(f'🔔 {ticker} · condición alcanzada',256),
+            'description':_report_clip(message,1400),'color':color,'fields':fields[:25],
+            'timestamp':stamp.astimezone(timezone.utc).isoformat(),
+            'footer':{'text':'SHADOW MODE · Alerta informativa · Ninguna orden fue enviada'}}
+
+
+def build_discord_channel_test(now=None):
+    stamp=now if isinstance(now,datetime) else datetime.now(timezone.utc)
+    if stamp.tzinfo is None: stamp=stamp.replace(tzinfo=timezone.utc)
+    return {'author':{'name':'Market Screener Pro · Investment Desk'},
+            'title':'✅ Canal de informes conectado',
+            'description':'Discord está listo para recibir los nuevos informes estructurados.',
+            'color':0x2ECC71,
+            'fields':[{'name':'Alertas inmediatas','value':'Solo ante eventos materiales o reglas guardadas que se activen.','inline':False},
+                      {'name':'Informe premarket','value':'Un resumen del CIO por cada día hábil.','inline':False}],
+            'timestamp':stamp.astimezone(timezone.utc).isoformat(),
+            'footer':{'text':'SHADOW MODE · Prueba de formato · Ninguna orden fue enviada'}}
+
+
+def send_webhook(message, url='', discord_embed=None):
     target=_webhook_url(url)
     if not target: return False
     provider=webhook_status(target)['provider']
-    payload={'content':str(message)} if provider=='DISCORD' else {'text':str(message)} if provider=='SLACK' else {'text':str(message),'content':str(message)}
+    if provider=='DISCORD' and isinstance(discord_embed,dict):
+        payload={'username':'Investment Desk','embeds':[discord_embed],'allowed_mentions':{'parse':[]}}
+    elif provider=='DISCORD': payload={'content':_report_clip(message,1950),'allowed_mentions':{'parse':[]}}
+    elif provider=='SLACK': payload={'text':str(message)}
+    else: payload={'text':str(message),'content':str(message)}
     try:
-        r=requests.post(target,json=payload,timeout=10)
+        request_kwargs={'json':payload,'timeout':10}
+        if provider=='DISCORD': request_kwargs['params']={'wait':'true'}
+        r=requests.post(target,**request_kwargs)
         return 200<=r.status_code<300
     except Exception:
         return False

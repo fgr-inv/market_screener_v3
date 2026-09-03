@@ -548,3 +548,14 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Migrates Streamlit components from deprecated `use_container_width` to `width`, removing the repeated console warning on current Streamlit versions.
 - No additional paid service or secret is required beyond the existing `DATABASE_URL`, `DEV_USER_ID` and `FMP_API_KEY`. SEC EDGAR is public; Yahoo remains the no-news fallback.
 - V11.36 remains research-only Shadow Mode. It never sends, edits or cancels broker orders.
+
+### V11.36.1 — Professional Discord Reports
+- Replaces plain Discord messages with bounded rich embeds: visual severity colors, concise Spanish labels, explicit timestamps, source links and a mandatory Shadow Mode footer.
+- Material-event alerts lead with the catalyst itself, then show direction, severity, thesis impact, source quality, portfolio/market context and the next human review step.
+- Saved price, EMA, Entry Score and R/R alerts use a separate compact card that preserves the configured threshold, trigger type and personal note.
+- Adds one idempotent pre-market CIO report per weekday with market regime, principal portfolio risk, verified opportunities, material catalysts and decisions requiring review.
+- The daily report is delivered even when there is no urgent event, while hourly monitors remain silent when nothing material changed. Failed deliveries remain retriable and completed deliveries are never duplicated for the same run key.
+- Manual `Daily CIO Brief` workflow runs are allowed outside the scheduled slot, so the report can be tested immediately after deployment without weakening scheduled deduplication.
+- Discord payloads disable automatic mentions and remain below the official per-field, 25-field and 6,000-character embed limits. Slack and generic webhooks retain a structured plain-text fallback.
+- The Saved Alerts test button now previews the new Discord format without fabricating a market signal.
+- V11.36.1 changes presentation and delivery only. It remains research-only Shadow Mode with no broker execution path.

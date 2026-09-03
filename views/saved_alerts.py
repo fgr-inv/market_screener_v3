@@ -6,7 +6,7 @@ from core.storage import (
     alert_storage_health,
 )
 from core.market_data import download_prices
-from core.alerts_engine import evaluate_rule, send_webhook, webhook_status
+from core.alerts_engine import evaluate_rule, send_webhook, webhook_status, build_discord_channel_test
 from core.notification_settings import get_user_webhook, set_user_webhook, clear_user_webhook, masked_webhook
 from core.production_storage import storage_mode, cloud_available
 from core.ui import hero, section_note
@@ -70,7 +70,8 @@ if not channel['configured']:
     st.warning('No tenés un canal configurado. Las reglas se evaluarán, pero no podrán enviarte avisos.')
 else:
     if st.button('Enviar notificación de prueba'):
-        ok=send_webhook('✅ Market Screener: canal de alertas funcionando.',url=user_webhook)
+        ok=send_webhook('✅ Market Screener: canal de alertas funcionando.',url=user_webhook,
+                        discord_embed=build_discord_channel_test())
         st.success('Notificación enviada.') if ok else st.error('El webhook rechazó o no recibió la prueba.')
 
 st.subheader('Crear alerta')
