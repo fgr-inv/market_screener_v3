@@ -520,3 +520,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Shadow Forward Validation counts decision/horizon pairs not yet processed by the daily evaluator as pending, so newly recorded decisions no longer appear as zero pending observations.
 - Opportunity Hunt idempotency is tied to the snapshot timestamp: repeated runs reuse the same snapshot result, while a newly generated same-day snapshot can be analyzed immediately.
 - V11.34 remains research-only Shadow Mode and contains no broker execution path.
+
+## V11.35 — Percentage-Based Portfolio Positions
+- Portfolio Risk now accepts either traditional quantity/cost positions or a direct current portfolio percentage, without requiring total account capital.
+- Percentage allocations are persisted per user in DuckDB/Postgres through a backward-compatible nullable `allocation_pct` column; existing quantity positions require no migration by the user.
+- Declared percentages remain exact. Any unassigned remainder is treated as cash, while allocations above 100% are rejected and clearly reported.
+- Mixed portfolios are supported during migration: declared percentages are preserved and quantity-only positions share the remaining allocation according to current market value.
+- Portfolio risk, sector/theme concentration, correlation risk, factor exposure, hypothetical stress, historical stress, optimizer current weights and the Investment Desk Portfolio Agent all consume the same normalized allocation model.
+- Dollar market value and dollar P&L/VaR are shown only when actual quantities provide a valid dollar basis; percentage portfolios still receive percentage risk and stress analysis without invented capital values.
+- V11.35 remains research-only Shadow Mode. It does not rebalance, trade or send broker orders.

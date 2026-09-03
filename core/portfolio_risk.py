@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from core.portfolio_positions import resolve_position_allocations
 
 
 def _max_drawdown(series):
@@ -11,21 +12,18 @@ def _max_drawdown(series):
 def portfolio_risk(positions, price_map, benchmark='SPY'):
     if positions is None or positions.empty:
         return {},pd.DataFrame(),pd.DataFrame()
-    vals=[]; returns={}
-    for _,p in positions.iterrows():
-        t=str(p['ticker']).upper(); raw=price_map.get(t)
-        if raw is None or raw.empty: continue
-        close=raw['Close'].dropna()
-        if close.empty: continue
-        price=float(close.iloc[-1]); value=float(p['quantity'])*price
-        vals.append({'Ticker':t,'Value':value,'Price':price,'Quantity':p['quantity'],'Sector':p.get('sector','Unknown')})
-        returns[t]=close.pct_change().dropna()
-    detail=pd.DataFrame(vals)
-    if detail.empty: return {},detail,pd.DataFrame()
-    total=detail['Value'].sum(); detail['Weight %']=detail['Value']/total*100
+    detail,allocation=resolve_position_allocations(positions,price_map)
+    if detail.empty or allocation['status']!='CURRENT':
+        return {'Allocation Status':allocation['status'],'Allocation Total %':allocation['allocation_total_pct']},detail,pd.DataFrame()
+    returns={}
+    for ticker in detail['Ticker']:
+        raw=price_map.get(ticker)
+        if raw is not None and not raw.empty and 'Close' in raw:
+            returns[ticker]=raw['Close'].dropna().pct_change().dropna()
+    total=allocation.get('dollar_total')
     ret_df=pd.concat(returns,axis=1).dropna(how='all') if returns else pd.DataFrame()
     corr=ret_df.corr() if not ret_df.empty else pd.DataFrame()
-    weights=detail.set_index('Ticker')['Value']/total
+    weights=detail.set_index('Ticker')['Weight %']/100
     common=[t for t in weights.index if t in ret_df.columns]
     port=pd.Series(dtype=float); rc_pct=pd.Series(dtype=float); standalone_vol=pd.Series(dtype=float)
     if common:
@@ -41,15 +39,17 @@ def portfolio_risk(positions, price_map, benchmark='SPY'):
                 rc_pct=pd.Series(component/sigma2*100,index=common)
             standalone_vol=aligned.std()*np.sqrt(252)*100
     ann_vol=float(port.std()*np.sqrt(252)*100) if len(port)>10 else np.nan
-    var95=float(-np.percentile(port,5)*total) if len(port)>20 else np.nan
+    var95=float(-np.percentile(port,5)*total) if len(port)>20 and total is not None else np.nan
     cvar95=np.nan
     if len(port)>20:
         cutoff=np.percentile(port,5); tail=port[port<=cutoff]
-        if len(tail): cvar95=float(-tail.mean()*total)
+        if len(tail) and total is not None: cvar95=float(-tail.mean()*total)
     max_weight=float(detail['Weight %'].max())
-    sector_conc=detail.groupby('Sector')['Value'].sum()/total*100
+    sector_conc=detail.groupby('Sector')['Weight %'].sum()
     max_sector=float(sector_conc.max()) if len(sector_conc) else np.nan
-    effective_n=float(1/(weights.pow(2).sum())) if len(weights) else np.nan
+    invested_weight=float(weights.sum())
+    invested_weights=weights/invested_weight if invested_weight>0 else weights
+    effective_n=float(1/(invested_weights.pow(2).sum())) if len(invested_weights) and invested_weight>0 else np.nan
     beta=np.nan
     braw=price_map.get(benchmark)
     if braw is not None and not braw.empty and len(port)>10:
@@ -59,9 +59,10 @@ def portfolio_risk(positions, price_map, benchmark='SPY'):
     detail['Risk Contribution %']=detail['Ticker'].map(rc_pct).fillna(0).astype(float)
     detail['Risk / Weight']=np.where(detail['Weight %']>0,detail['Risk Contribution %']/detail['Weight %'],np.nan)
     summary={
-        'Market Value':total,'Annualized Vol %':ann_vol,'1d VaR 95 $':var95,'1d CVaR 95 $':cvar95,
+        'Market Value':np.nan if total is None else total,'Allocation Total %':allocation['allocation_total_pct'],
+        'Cash / Unassigned %':allocation['cash_pct'],'Annualized Vol %':ann_vol,'1d VaR 95 $':var95,'1d CVaR 95 $':cvar95,
         'Historical Max Drawdown %':_max_drawdown(port),'Portfolio Beta':beta,'Largest Position %':max_weight,
-        'Largest Sector %':max_sector,'Effective # Positions':effective_n,
+        'Largest Sector %':max_sector,'Effective # Positions':effective_n,'Allocation Basis':allocation['basis'],
     }
     return summary,detail,corr
 

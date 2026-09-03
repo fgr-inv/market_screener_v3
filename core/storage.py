@@ -16,7 +16,7 @@ SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
 
 ALERT_COLUMNS=['id','user_id','created_at','ticker','rule_type','threshold','enabled','note','cooldown_minutes','repeat_while_true']
 ALERT_STATE_COLUMNS=['alert_id','last_hit','last_triggered_at','last_evaluated_at','last_message','trigger_count']
-POSITION_COLUMNS=['ticker','quantity','avg_cost','sector','note','updated_at']
+POSITION_COLUMNS=['ticker','quantity','avg_cost','allocation_pct','sector','note','updated_at']
 THESIS_COLUMNS=['ticker','created_at','updated_at','thesis','catalysts','invalidation','target','review_date','status','note']
 
 
@@ -360,11 +360,13 @@ def _ensure_user_portfolio_tables(con):
     # User-scoped tables avoid cross-account portfolio leakage and preserve legacy tables.
     con.execute('''
         CREATE TABLE IF NOT EXISTS user_portfolio_positions (
-            user_id VARCHAR, ticker VARCHAR, quantity DOUBLE, avg_cost DOUBLE,
+            user_id VARCHAR, ticker VARCHAR, quantity DOUBLE, avg_cost DOUBLE, allocation_pct DOUBLE,
             sector VARCHAR, note VARCHAR, updated_at TIMESTAMP,
             PRIMARY KEY (user_id, ticker)
         )
     ''')
+    try: con.execute('ALTER TABLE user_portfolio_positions ADD COLUMN IF NOT EXISTS allocation_pct DOUBLE')
+    except Exception: pass
     con.execute('''
         CREATE TABLE IF NOT EXISTS user_investment_theses (
             user_id VARCHAR, ticker VARCHAR, created_at TIMESTAMP, updated_at TIMESTAMP,
@@ -379,8 +381,12 @@ def _ensure_user_portfolio_tables(con):
             legacy=con.execute('SELECT * FROM portfolio_positions').df()
             if not legacy.empty:
                 legacy.insert(0,'user_id',uid)
-                con.register('legacy_positions',legacy[['user_id','ticker','quantity','avg_cost','sector','note','updated_at']])
-                con.execute('INSERT OR IGNORE INTO user_portfolio_positions SELECT * FROM legacy_positions')
+                legacy['allocation_pct']=None
+                cols=['user_id','ticker','quantity','avg_cost','allocation_pct','sector','note','updated_at']
+                con.register('legacy_positions',legacy[cols])
+                con.execute('''INSERT OR IGNORE INTO user_portfolio_positions
+                    (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+                    SELECT user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at FROM legacy_positions''')
     except Exception as exc:
         log_event('positions_legacy_migration_error',error=str(exc)[:180])
     try:
@@ -404,8 +410,8 @@ def _migrate_cloud_legacy_portfolio_if_needed(user_id):
         if int(counts.iloc[0].get('p',0) or 0)==0:
             old=query_sql('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM portfolio_positions')
             for _,r in old.iterrows():
-                execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
-                    VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated) ON CONFLICT (user_id,ticker) DO NOTHING''',
+                execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+                    VALUES (:uid,:ticker,:q,:cost,NULL,:sector,:note,:updated) ON CONFLICT (user_id,ticker) DO NOTHING''',
                     {'uid':uid,'ticker':r['ticker'],'q':float(r['quantity']),'cost':float(r['avg_cost']),
                      'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r.get('updated_at')})
         if int(counts.iloc[0].get('t',0) or 0)==0:
@@ -441,31 +447,39 @@ def import_positions_csv_if_needed():
                 if 'user_id' not in df.columns: df.insert(0,'user_id',_default_alert_user_id())
                 for c,v in {'sector':'Unknown','note':'','updated_at':_utcnow_naive()}.items():
                     if c not in df.columns: df[c]=v
+                if 'allocation_pct' not in df.columns: df['allocation_pct']=None
                 df['updated_at']=pd.to_datetime(df['updated_at'],errors='coerce')
-                cols=['user_id','ticker','quantity','avg_cost','sector','note','updated_at']
-                con.register('tmp_positions',df[cols]); con.execute('INSERT OR IGNORE INTO user_portfolio_positions SELECT * FROM tmp_positions')
+                cols=['user_id','ticker','quantity','avg_cost','allocation_pct','sector','note','updated_at']
+                con.register('tmp_positions',df[cols]); con.execute('''INSERT OR IGNORE INTO user_portfolio_positions
+                    (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+                    SELECT user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at FROM tmp_positions''')
     except Exception as e: log_event('positions_import_error',error=str(e)[:180])
     con.close()
 
 
-def upsert_position(ticker, quantity, avg_cost, sector='Unknown', note='', user_id=None):
+def upsert_position(ticker, quantity=0, avg_cost=0, sector='Unknown', note='', user_id=None, allocation_pct=None):
     ticker=str(ticker or '').upper().strip()
     if not ticker: raise ValueError('Ticker vacío')
     q=float(quantity); cost=float(avg_cost)
+    allocation=None if allocation_pct is None else float(allocation_pct)
     if q < 0 or cost < 0: raise ValueError('Cantidad y costo deben ser >= 0')
+    if allocation is not None and not 0 < allocation <= 100: raise ValueError('El porcentaje debe ser mayor a 0 y menor o igual a 100')
+    if allocation is None and q <= 0: raise ValueError('La cantidad debe ser mayor a 0 cuando no se carga por porcentaje')
     uid=str(user_id or _default_alert_user_id()); now=_utcnow_naive()
     con=_conn(); _ensure_user_portfolio_tables(con)
-    con.execute('''INSERT INTO user_portfolio_positions VALUES (?,?,?,?,?,?,?)
+    con.execute('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+        VALUES (?,?,?,?,?,?,?,?)
         ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
-        sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
-        [uid,ticker,q,cost,str(sector or 'Unknown'),str(note or '')[:500],now])
+        allocation_pct=EXCLUDED.allocation_pct,sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+        [uid,ticker,q,cost,allocation,str(sector or 'Unknown'),str(note or '')[:500],now])
     con.close(); _mirror_positions_csv()
     if cloud_available():
-        ok,msg=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
-            VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated)
+        ensure_production_schema()
+        ok,msg=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+            VALUES (:uid,:ticker,:q,:cost,:allocation,:sector,:note,:updated)
             ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
-            sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
-            {'uid':uid,'ticker':ticker,'q':q,'cost':cost,'sector':str(sector or 'Unknown'),'note':str(note or '')[:500],'updated':now})
+            allocation_pct=EXCLUDED.allocation_pct,sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+            {'uid':uid,'ticker':ticker,'q':q,'cost':cost,'allocation':allocation,'sector':str(sector or 'Unknown'),'note':str(note or '')[:500],'updated':now})
         if not ok: raise RuntimeError(f'No se pudo guardar la posición en Postgres: {msg}')
     return True
 
@@ -473,11 +487,12 @@ def upsert_position(ticker, quantity, avg_cost, sector='Unknown', note='', user_
 def load_positions(user_id=None):
     uid=str(user_id or _default_alert_user_id())
     if cloud_available():
+        ensure_production_schema()
         _migrate_cloud_legacy_portfolio_if_needed(uid)
-        x=query_sql('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=:uid ORDER BY ticker',{'uid':uid})
+        x=query_sql('SELECT ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=:uid ORDER BY ticker',{'uid':uid})
         if not x.empty: return x
     import_positions_csv_if_needed(); con=_conn(); _ensure_user_portfolio_tables(con)
-    df=con.execute('SELECT ticker,quantity,avg_cost,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=? ORDER BY ticker',[uid]).df(); con.close(); return df
+    df=con.execute('SELECT ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at FROM user_portfolio_positions WHERE user_id=? ORDER BY ticker',[uid]).df(); con.close(); return df
 
 
 def delete_position(ticker, user_id=None):
@@ -633,12 +648,13 @@ def sync_local_state_to_cloud():
 
     ok_count=0
     for _,r in positions.iterrows():
-        ok,_=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,sector,note,updated_at)
-            VALUES (:uid,:ticker,:q,:cost,:sector,:note,:updated)
+        allocation=None if pd.isna(r.get('allocation_pct')) else float(r.get('allocation_pct'))
+        ok,_=execute_sql('''INSERT INTO user_portfolio_positions (user_id,ticker,quantity,avg_cost,allocation_pct,sector,note,updated_at)
+            VALUES (:uid,:ticker,:q,:cost,:allocation,:sector,:note,:updated)
             ON CONFLICT (user_id,ticker) DO UPDATE SET quantity=EXCLUDED.quantity,avg_cost=EXCLUDED.avg_cost,
-            sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
+            allocation_pct=EXCLUDED.allocation_pct,sector=EXCLUDED.sector,note=EXCLUDED.note,updated_at=EXCLUDED.updated_at''',
             {'uid':str(r['user_id']),'ticker':r['ticker'],'q':float(r['quantity']),'cost':float(r['avg_cost']),
-             'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r['updated_at']})
+             'allocation':allocation,'sector':str(r.get('sector','Unknown')),'note':str(r.get('note','') or ''),'updated':r['updated_at']})
         ok_count+=int(ok)
     report.append({'Table':'user_portfolio_positions','Rows':len(positions),'Status':f'{ok_count}/{len(positions)} synced'})
 

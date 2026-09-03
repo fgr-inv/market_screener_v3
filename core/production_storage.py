@@ -96,11 +96,13 @@ def ensure_production_schema():
                 ticker TEXT NOT NULL,
                 quantity DOUBLE PRECISION,
                 avg_cost DOUBLE PRECISION,
+                allocation_pct DOUBLE PRECISION,
                 sector TEXT,
                 note TEXT,
                 updated_at TIMESTAMP,
                 PRIMARY KEY (user_id, ticker)
             )''',
+            "ALTER TABLE user_portfolio_positions ADD COLUMN IF NOT EXISTS allocation_pct DOUBLE PRECISION",
             '''CREATE INDEX IF NOT EXISTS idx_user_portfolio_positions_user
                ON user_portfolio_positions(user_id)''',
             '''CREATE TABLE IF NOT EXISTS user_investment_theses (

@@ -26,8 +26,9 @@ else:
     summary,detail=historical_stress_portfolio(pos,pm,scenario)
 
 a,b,c=st.columns(3)
-a.metric('Portfolio Value',f"${summary.get('Portfolio Value',0):,.0f}")
-b.metric('Estimated P&L',f"${summary.get('Estimated P&L $',0):,.0f}")
-c.metric('Estimated Impact',f"{summary.get('Estimated Portfolio %',0):+.1f}%")
+portfolio_value=summary.get('Portfolio Value'); estimated_pnl=summary.get('Estimated P&L $'); impact=summary.get('Estimated Portfolio %')
+a.metric('Portfolio Value','N/D' if portfolio_value is None or pd.isna(portfolio_value) else f"${portfolio_value:,.0f}")
+b.metric('Estimated P&L','N/D' if estimated_pnl is None or pd.isna(estimated_pnl) else f"${estimated_pnl:,.0f}")
+c.metric('Estimated Impact','N/D' if impact is None or pd.isna(impact) else f"{impact:+.1f}%")
 st.dataframe(detail,use_container_width=True,hide_index=True)
 st.warning('Stress results are sensitivity estimates. Correlations, liquidity and gaps can worsen materially during a real crisis.')

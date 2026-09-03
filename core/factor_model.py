@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from core.portfolio_positions import resolve_position_allocations
 
 FACTOR_PROXIES = {
     'Momentum': 'MTUM',
@@ -40,20 +41,12 @@ def factor_exposures(ticker, price_map, window=126):
 def portfolio_factor_exposure(positions, price_map, window=126):
     if positions is None or positions.empty:
         return pd.DataFrame()
-    rows=[]
-    values=[]
-    for _, p in positions.iterrows():
-        t = str(p['ticker']).upper()
-        raw = price_map.get(t)
-        if raw is None or raw.empty: continue
-        price=float(raw['Close'].dropna().iloc[-1]); val=float(p['quantity'])*price
-        values.append((t,val))
-    total=sum(v for _,v in values)
-    if total<=0: return pd.DataFrame()
+    resolved,allocation=resolve_position_allocations(positions,price_map)
+    if allocation.get('status')!='CURRENT': return pd.DataFrame()
+    values=[(str(r['Ticker']),float(r.get('Weight %',0) or 0)/100) for _,r in resolved.iterrows() if float(r.get('Weight %',0) or 0)>0]
     agg={}
-    for t,val in values:
+    for t,w in values:
         ex=factor_exposures(t,price_map,window)
-        w=val/total
         for _,r in ex.iterrows():
             agg[r['Factor']]=agg.get(r['Factor'],0)+w*float(r['Beta'])
     return pd.DataFrame([{'Factor':k,'Portfolio Beta':v} for k,v in agg.items()]).sort_values('Portfolio Beta',ascending=False)

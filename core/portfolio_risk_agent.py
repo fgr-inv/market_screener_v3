@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import pandas as pd
 from core.agent_contracts import AgentResult,Evidence,DataStatus
+from core.portfolio_positions import resolve_position_allocations
 
 AGENT_VERSION='1.0'; SKILL='portfolio_risk_review'; SKILL_VERSION='1.0'
 
@@ -27,33 +28,33 @@ def analyze_portfolio_risk(positions: pd.DataFrame, histories: dict | None=None)
             alternative_explanation='A portfolio may exist at an external broker but is not yet synchronized with the authoritative app portfolio.',
             metadata={'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
 
-    rows=[]
-    for _,p in positions.iterrows():
-        t=str(p.get('ticker','')).upper().strip(); h=histories.get(t)
-        if not t or h is None or h.empty or 'Close' not in h: continue
-        close=h['Close'].dropna()
-        if close.empty: continue
-        px=_finite(close.iloc[-1]); qty=_finite(p.get('quantity'))
-        if px is None or qty is None: continue
-        rows.append({'ticker':t,'sector':str(p.get('sector','Unknown') or 'Unknown'),'value':px*qty,'close':close})
-    if not rows:
+    detail,allocation=resolve_position_allocations(positions,histories)
+    if allocation.get('status')=='OVER_ALLOCATED':
         return AgentResult('Portfolio & Risk',AGENT_VERSION,SKILL,SKILL_VERSION,'PORTFOLIO','UNAVAILABLE',0.0,
-            'Positions exist but current market values could not be calculated.',
-            [Evidence('Market-valued positions',0,'Saved positions + shared price cache',status=DataStatus.FAILED)],
-            alternative_explanation='The saved portfolio may be valid while current price history is temporarily unavailable.',
-            metadata={'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
+            f"Declared portfolio allocation is {allocation.get('allocation_total_pct',0):.1f}%, above the 100% limit.",
+            [Evidence('Declared allocation',allocation.get('allocation_total_pct'),'Saved positions',status=DataStatus.FAILED)],
+            metadata={'weights':{},'sector_weights':{},'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
+    rows=[]
+    for _,p in detail.iterrows():
+        t=str(p.get('Ticker','')); h=histories.get(t); weight=float(p.get('Weight %',0) or 0)/100
+        close=pd.Series(dtype=float) if h is None or h.empty or 'Close' not in h else h['Close'].dropna()
+        if weight>0: rows.append({'ticker':t,'sector':str(p.get('Sector','Unknown')),'weight':weight,'close':close})
+    if not rows or sum(r['weight'] for r in rows)<=0:
+        return AgentResult('Portfolio & Risk',AGENT_VERSION,SKILL,SKILL_VERSION,'PORTFOLIO','UNAVAILABLE',0.0,
+            'Saved positions have no usable quantity value or percentage allocation.',
+            [Evidence('Weighted positions',0,'Saved positions',status=DataStatus.FAILED)],
+            metadata={'weights':{},'sector_weights':{},'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
 
-    total=sum(r['value'] for r in rows)
-    weights={r['ticker']:(r['value']/total if total>0 else 0) for r in rows}
+    weights={r['ticker']:r['weight'] for r in rows}
     sector_values={}
-    for r in rows: sector_values[r['sector']]=sector_values.get(r['sector'],0)+r['value']
-    sector_weights={k:(v/total if total>0 else 0) for k,v in sector_values.items()}
+    for r in rows: sector_values[r['sector']]=sector_values.get(r['sector'],0)+r['weight']
+    sector_weights=sector_values
     largest=max(weights,key=weights.get); largest_w=weights[largest]
     top_sector=max(sector_weights,key=sector_weights.get); top_sector_w=sector_weights[top_sector]
     hhi=sum(w*w for w in weights.values())
 
     corr=None
-    series={r['ticker']:r['close'].pct_change().dropna().tail(126) for r in rows}
+    series={r['ticker']:r['close'].pct_change().dropna().tail(126) for r in rows if not r['close'].empty}
     if len(series)>=2:
         rets=pd.concat(series,axis=1).dropna(how='all')
         if len(rets)>=30:
@@ -74,9 +75,11 @@ def analyze_portfolio_risk(positions: pd.DataFrame, histories: dict | None=None)
     elif corr is not None and corr>=.45: risk_points+=1
     if hhi>=.18: risk_points+=1
     state='HIGH_RISK' if risk_points>=5 else 'ELEVATED' if risk_points>=3 else 'BALANCED'
-    conf=.9 if len(rows)==len(positions) else max(.5,len(rows)/max(len(positions),1))
+    priced=sum(not r['close'].empty for r in rows)
+    conf=.9 if priced==len(rows) else max(.5,priced/max(len(rows),1))
     ev=[
-        Evidence('Portfolio market value',round(total,2),'Saved positions + shared price cache',status=DataStatus.CURRENT),
+        Evidence('Portfolio allocation',round(sum(weights.values())*100,2),'Saved percentage weights / current market values',status=DataStatus.CURRENT,
+                 note=f"{allocation.get('basis')} · cash/unassigned {allocation.get('cash_pct',0):.1f}%"),
         Evidence('Largest position weight',round(largest_w,4),'Calculated from current market values',status=DataStatus.CURRENT,note=largest),
         Evidence('Largest sector weight',round(top_sector_w,4),'Saved position sector labels',status=DataStatus.CURRENT,note=top_sector),
         Evidence('Position concentration HHI',round(hhi,4),'Calculated from current portfolio weights',status=DataStatus.CURRENT),
@@ -84,8 +87,9 @@ def analyze_portfolio_risk(positions: pd.DataFrame, histories: dict | None=None)
     ]
     alt='Nominal sector labels can understate common economic drivers; holdings in different sectors may still share the same factor or thematic exposure.'
     return AgentResult('Portfolio & Risk',AGENT_VERSION,SKILL,SKILL_VERSION,'PORTFOLIO',state,round(conf,2),
-        f'Portfolio risk: {state} · {len(rows)} valued positions · largest {largest} {largest_w:.0%} · top sector {top_sector} {top_sector_w:.0%}.',
-        ev,contradictions,alt,metadata={'weights':weights,'sector_weights':sector_weights,'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
+        f'Portfolio risk: {state} · {len(rows)} weighted positions · largest {largest} {largest_w:.0%} · top sector {top_sector} {top_sector_w:.0%}.',
+        ev,contradictions,alt,metadata={'weights':weights,'sector_weights':sector_weights,'allocation_basis':allocation.get('basis'),
+        'cash_pct':allocation.get('cash_pct',0),'approval_boundary':'Risk analysis only. Never place, resize or close an order.'})
 
 
 def portfolio_fit_for_candidate(ticker: str, sector: str, portfolio_result: AgentResult | None):

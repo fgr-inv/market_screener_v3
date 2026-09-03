@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from core.portfolio_positions import resolve_position_allocations
 
 DEFAULT_SCENARIOS = {
     'Nasdaq -10% / VIX shock': {'QQQ': -0.10, 'SPY': -0.07, 'IWM': -0.08, 'TLT': 0.03, 'GLD': 0.02, 'BTC-USD': -0.18},
@@ -22,11 +23,13 @@ def stress_portfolio(positions, price_map, scenario_name, scenario=None):
         return {}, pd.DataFrame()
     shocks = scenario or DEFAULT_SCENARIOS.get(scenario_name, {})
     proxy_order = [k for k in ['QQQ','SPY','IWM','XLE','XLRE','XLU','TLT','GLD','BTC-USD','CL=F'] if k in shocks]
-    rows=[]; total=0; pnl=0
-    for _,p in positions.iterrows():
-        t=str(p['ticker']).upper(); raw=price_map.get(t)
+    resolved,allocation=resolve_position_allocations(positions,price_map)
+    if allocation.get('status')!='CURRENT': return {'Allocation Status':allocation.get('status')},pd.DataFrame()
+    rows=[]; total=allocation.get('dollar_total'); pnl=0 if total is not None else np.nan; impact=0
+    for _,p in resolved.iterrows():
+        t=str(p['Ticker']).upper(); raw=price_map.get(t)
         if raw is None or raw.empty: continue
-        price=float(raw['Close'].dropna().iloc[-1]); value=float(p['quantity'])*price; total+=value
+        value=p.get('Market Value'); weight=float(p.get('Weight %',0) or 0)/100
         if t in shocks:
             shock=float(shocks[t]); method='direct'
         else:
@@ -42,7 +45,10 @@ def stress_portfolio(positions, price_map, scenario_name, scenario=None):
                 _,proxy,b=best; shock=float(b)*float(shocks[proxy]); method=f'beta to {proxy}'
             else:
                 shock=float(shocks.get('SPY',-0.05)); method='fallback SPY'
-        est=value*shock; pnl+=est
-        rows.append({'Ticker':t,'Value':value,'Estimated Shock %':shock*100,'Estimated P&L $':est,'Method':method})
-    summary={'Scenario':scenario_name,'Portfolio Value':total,'Estimated P&L $':pnl,'Estimated Portfolio %':(pnl/total*100 if total else np.nan)}
-    return summary,pd.DataFrame(rows).sort_values('Estimated P&L $') if rows else pd.DataFrame()
+        impact+=weight*shock
+        est=(float(value)*shock if pd.notna(value) and allocation.get('basis')=='QUANTITY' else np.nan)
+        if pd.notna(pnl) and pd.notna(est): pnl+=est
+        rows.append({'Ticker':t,'Weight %':weight*100,'Value':value,'Estimated Shock %':shock*100,'Estimated P&L $':est,'Method':method})
+    summary={'Scenario':scenario_name,'Portfolio Value':np.nan if total is None else total,
+             'Estimated P&L $':pnl,'Estimated Portfolio %':impact*100}
+    return summary,pd.DataFrame(rows).sort_values('Estimated Shock %') if rows else pd.DataFrame()

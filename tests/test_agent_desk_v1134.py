@@ -40,5 +40,6 @@ def test_v1134_wires_candidate_sectors_and_manual_alert_refresh():
     assert "if st.button('Actualizar señales',type='primary'):" in alerts
     assert "or 'live_alert_rows' not in st.session_state" not in alerts
     assert 'desk_ticks' in alerts
-    assert 'APP_VERSION = "11.34"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(map(int,version.split('.'))) >= (11,34)
     assert all(term not in worker.lower() for term in ('tradingclient','place_order','submit_order','alpaca'))

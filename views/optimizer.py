@@ -5,6 +5,7 @@ from core.storage import load_positions
 from core.market_data import download_prices
 from core.optimizer import risk_parity_weights, correlation_penalty_weights
 from core.advanced_optimizer import min_variance_weights, max_sharpe_weights
+from core.portfolio_positions import resolve_position_allocations
 from core.ui import hero, section_note
 
 hero('Portfolio Optimizer','Risk parity, correlation-aware, shrinkage min-variance y constrained max-Sharpe.','Portfolio Construction')
@@ -25,13 +26,8 @@ elif method=='Correlation-Aware':
 elif method=='Shrinkage Min-Variance':
     shrink=st.slider('Covariance shrinkage',0.0,0.9,0.35,0.05)
     turn=st.slider('Turnover penalty',0.0,1.0,0.05,0.05)
-    vals={}
-    total=0
-    for _,r in pos.iterrows():
-        raw=pm.get(str(r['ticker']).upper())
-        if raw is None or raw.empty: continue
-        val=float(r['quantity'])*float(raw['Close'].dropna().iloc[-1]); vals[str(r['ticker']).upper()]=val; total+=val
-    current={t:v/total for t,v in vals.items()} if total else {}
+    resolved,allocation=resolve_position_allocations(pos,pm)
+    current={str(r['Ticker']):float(r.get('Weight %',0) or 0)/100 for _,r in resolved.iterrows()} if allocation.get('status')=='CURRENT' else {}
     out=min_variance_weights(tickers,pm,max_weight=maxw,shrink=shrink,current_weights=current,turnover_penalty=turn)
 else:
     rf=st.number_input('Risk-free rate (%)',0.0,15.0,4.0,.25)/100

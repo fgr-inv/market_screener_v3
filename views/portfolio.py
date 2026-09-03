@@ -6,6 +6,7 @@ from core.market_data import download_prices, classify_symbol
 from core.indicators import enrich_indicators
 from core.asset_models import analyze_asset
 from core.storage import load_positions, load_theses, upsert_thesis, delete_thesis
+from core.portfolio_positions import resolve_position_allocations
 from core.access_control import current_user
 from core.ui import hero, section_note
 
@@ -21,26 +22,28 @@ with positions_tab:
     else:
         ticks=pos['ticker'].astype(str).str.upper().tolist()
         pm=download_prices(ticks,period='1y')
-        rows=[]
-        for _,p in pos.iterrows():
-            t=str(p['ticker']).upper(); raw=pm.get(t)
-            if raw is None or raw.empty: continue
-            px=float(raw['Close'].dropna().iloc[-1]); qty=float(p['quantity']); cost=float(p['avg_cost'])
-            value=qty*px; invested=qty*cost; pnl=value-invested; pnl_pct=(px/cost-1)*100 if cost>0 else None
-            rows.append({'Ticker':t,'Quantity':qty,'Avg Cost':cost,'Price':px,'Market Value':value,'Unrealized P&L $':pnl,
-                         'Unrealized P&L %':pnl_pct,'Sector':p.get('sector','Unknown'),'Note':p.get('note','')})
-        out=pd.DataFrame(rows)
+        out,allocation=resolve_position_allocations(pos,pm)
+        if not out.empty:
+            out['Unrealized P&L $']=out.apply(lambda row:(row['Market Value']-row['Quantity']*row['Avg Cost']) if pd.notna(row['Market Value']) and row['Avg Cost']>0 else None,axis=1)
+            out['Unrealized P&L %']=out.apply(lambda row:(row['Price']/row['Avg Cost']-1)*100 if pd.notna(row['Price']) and row['Avg Cost']>0 else None,axis=1)
         if out.empty:
             st.warning('No se pudieron obtener precios para las posiciones guardadas.')
+        elif allocation['status']=='OVER_ALLOCATED':
+            st.error(f"Los porcentajes cargados suman {allocation['allocation_total_pct']:.1f}%. Deben sumar como máximo 100%.")
+            st.dataframe(out,use_container_width=True,hide_index=True)
         else:
-            total=float(out['Market Value'].sum()); invested=float((out['Quantity']*out['Avg Cost']).sum()); pnl=total-invested
             c1,c2,c3,c4=st.columns(4)
-            c1.metric('Market Value',f'${total:,.0f}')
-            c2.metric('Cost Basis',f'${invested:,.0f}')
-            c3.metric('Unrealized P&L',f'${pnl:,.0f}',delta=f'{(total/invested-1)*100:+.1f}%' if invested>0 else None)
+            if allocation['basis']=='QUANTITY':
+                total=float(allocation['dollar_total']); invested=float((out['Quantity']*out['Avg Cost']).sum()); pnl=total-invested
+                c1.metric('Market Value',f'${total:,.0f}')
+                c2.metric('Cost Basis',f'${invested:,.0f}')
+                c3.metric('Unrealized P&L',f'${pnl:,.0f}',delta=f'{(total/invested-1)*100:+.1f}%' if invested>0 else None)
+            else:
+                c1.metric('Allocated',f"{allocation['allocation_total_pct']:.1f}%")
+                c2.metric('Cash / unassigned',f"{allocation['cash_pct']:.1f}%")
+                c3.metric('Input mode',allocation['basis'])
             c4.metric('Positions',len(out))
-            out['Weight %']=out['Market Value']/total*100 if total>0 else 0
-            st.dataframe(out.sort_values('Market Value',ascending=False),use_container_width=True,hide_index=True)
+            st.dataframe(out.sort_values('Weight %',ascending=False),use_container_width=True,hide_index=True)
 
 with watch:
     saved_ticks=pos['ticker'].astype(str).tolist() if not pos.empty else []
