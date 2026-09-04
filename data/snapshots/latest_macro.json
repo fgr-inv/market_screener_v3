@@ -3,22 +3,22 @@
   "Credit": 64,
   "Rates": 50,
   "Liquidity": 50,
-  "Growth": 28,
-  "Inflation_Pressure": 75,
-  "Breadth": 52,
-  "VIX": 14.319999694824219,
-  "Copper_Gold_20d": -0.05165757288138084,
-  "Oil_20d": 0.18876951953767596,
-  "US10Y_20d": 0.019700215444622637,
-  "US10Y_20d_bps": 9.200000762939453,
-  "Dollar_20d": -0.006385253698676374,
-  "HYG_IEF_20d": 0.005979828129200504,
-  "Macro_Score": 50,
-  "Macro_Score_20d_Ago": 59,
-  "Macro_Delta_20d": -9,
+  "Growth": 60,
+  "Inflation_Pressure": 70,
+  "Breadth": 50,
+  "VIX": 14.529999732971191,
+  "Copper_Gold_20d": -0.005868305175551591,
+  "Oil_20d": 0.16679458767748367,
+  "US10Y_20d": 0.026609458484877502,
+  "US10Y_20d_bps": 12.400007247924805,
+  "Dollar_20d": 0.0003562603844160517,
+  "HYG_IEF_20d": 0.00615273504327174,
+  "Macro_Score": 53,
+  "Macro_Score_20d_Ago": 56,
+  "Macro_Delta_20d": -2,
   "Risk_Regime": "NEUTRAL",
-  "Economic_Regime": "STAGFLATION RISK",
-  "Momentum": "DETERIORATING",
+  "Economic_Regime": "REFLATION",
+  "Momentum": "STABLE",
   "Slow_Macro_Score": 51.0,
   "Slow_Growth": 51.0,
   "Slow_Inflation_Pressure": 56.0,
@@ -35,10 +35,10 @@
   "Housing_Starts_YoY": -13.477653631284914,
   "Unemployment": 4.1,
   "Unemployment_3m_Change": -0.20000000000000018,
-  "Payroll_3m_Avg_Change": 20.0,
+  "Payroll_3m_Avg_Change": 71.33333333333333,
   "Fed_Funds": 3.63,
   "Fed_Funds_6m_Change": -0.010000000000000231,
-  "10Y_2Y": 0.43,
+  "10Y_2Y": 0.41,
   "10Y_Breakeven": 2.35,
   "NFCI": -0.558,
   "ISM_PMI": null,
@@ -83,14 +83,14 @@
       "series_id": "UNRATE",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Payrolls": {
       "series_id": "PAYEMS",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Industrial Production": {
@@ -125,14 +125,14 @@
       "series_id": "T10Y2Y",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-03 00:00:00",
+      "latest_date": "2026-09-04 00:00:00",
       "error": null
     },
     "10Y Breakeven": {
       "series_id": "T10YIE",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-03 00:00:00",
+      "latest_date": "2026-09-04 00:00:00",
       "error": null
     },
     "Financial Conditions": {
@@ -227,12 +227,12 @@
     {
       "Indicator": "Unemployment",
       "Value": 4.1,
-      "Previous": 4.2,
-      "Trend": "↓",
+      "Previous": 4.1,
+      "Trend": "→",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Unemployment 3m change",
@@ -242,17 +242,17 @@
       "Unit": "pp",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Payroll 3m avg change",
-      "Value": 20.0,
+      "Value": 71.33333333333333,
       "Previous": null,
       "Trend": "",
       "Unit": "thousands",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Fed Funds",
@@ -276,23 +276,23 @@
     },
     {
       "Indicator": "10Y-2Y",
-      "Value": 0.43,
-      "Previous": 0.4,
-      "Trend": "↑",
+      "Value": 0.41,
+      "Previous": 0.43,
+      "Trend": "↓",
       "Unit": "pp",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-03 00:00:00"
+      "Updated": "2026-09-04 00:00:00"
     },
     {
       "Indicator": "10Y Breakeven",
       "Value": 2.35,
-      "Previous": 2.34,
-      "Trend": "↑",
+      "Previous": 2.35,
+      "Trend": "→",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-03 00:00:00"
+      "Updated": "2026-09-04 00:00:00"
     },
     {
       "Indicator": "NFCI",
@@ -306,7 +306,7 @@
     }
   ],
   "FRED_Key_Configured": true,
-  "Fast_Macro_Score": 50,
+  "Fast_Macro_Score": 54,
   "Slow_Layer_Used": true,
   "Institutional_Regime": "NEUTRAL"
 }

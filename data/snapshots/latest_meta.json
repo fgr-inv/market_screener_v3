@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-04T02:48:51.843476+00:00",
+  "generated_at": "2026-09-04T22:32:33.842044+00:00",
   "scan_limit": 2200,
   "equity_universe_rows": 1512,
   "live_universe_rows": 1512,
@@ -23,23 +23,23 @@
     ]
   },
   "cap_segment_rows": {
-    "Small Cap": 545,
+    "Small Cap": 543,
     "Large Cap": 500,
     "Mid Cap": 400,
     "Unknown": 6
   },
   "trend_phase_rows": {
-    "NO_QUALIFIED_SETUP": 942,
-    "ESTABLISHED_LEADER": 286,
-    "BASE_NEAR_BREAKOUT": 93,
-    "BREAKOUT_CONFIRMED": 57,
-    "EARLY_ACCELERATION": 38,
-    "RECOVERY_WATCH": 35
+    "NO_QUALIFIED_SETUP": 978,
+    "ESTABLISHED_LEADER": 300,
+    "BASE_NEAR_BREAKOUT": 87,
+    "RECOVERY_WATCH": 30,
+    "EARLY_ACCELERATION": 29,
+    "BREAKOUT_CONFIRMED": 25
   },
   "symbols_requested": 1541,
   "symbols_downloaded": 1541,
-  "symbols_scored": 1451,
-  "symbol_failures": 61,
+  "symbols_scored": 1449,
+  "symbol_failures": 63,
   "failure_examples": [
     [
       "FDXF",
@@ -75,6 +75,10 @@
     ],
     [
       "APOG",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "ASTE",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
@@ -134,11 +138,7 @@
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
-      "HAFC",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
-    ],
-    [
-      "HFWA",
+      "FOXF",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ]
   ]
