@@ -632,3 +632,11 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Routes reads and DataFrame writes through the same bounded connection lifecycle, protecting Market Alerts, watchdog and recovery workers from connection exhaustion.
 - Offsets the Investment Desk and resilience schedules from the Market Alerts quarter-hour boundary so independent workflows do not request database sessions simultaneously.
 - V11.39.2 preserves existing data, idempotency and Shadow Mode. It adds no secret, broker integration or order path.
+
+### V11.39.3 — News Freshness + Yahoo SQLite Isolation
+- Isolates yfinance cookie/timezone SQLite caches per worker process and initializes them before internal download threads start, preventing one ticker from colliding on a shared cache database.
+- Retries tickers omitted from a partially successful Yahoo batch serially with `threads=False` and bounded backoff instead of silently treating the entire batch as complete.
+- Records explicit `portfolio_news` and `watchlist_news` heartbeats at the end of successful, partial, idle and idempotently reused scans.
+- A provider or ticker-level partial failure remains visible as `PARTIAL` but still proves that the overall scan completed; the watchdog no longer labels it stale solely because one underlying ticker failed.
+- News scan and heartbeat writes now expose durable Supabase persistence status. A genuine heartbeat write failure makes the workflow retriable instead of returning a misleading green result.
+- V11.39.3 remains research-only Shadow Mode and does not add broker or order capabilities.

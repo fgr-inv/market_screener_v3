@@ -7,6 +7,7 @@ import os
 from zoneinfo import ZoneInfo
 
 from core.agent_audit import append_agent_audit
+from core.automation_health import record_automation_heartbeat
 from core.agent_router import route_events
 from core.desk_notifications import notify_material_brief
 from core.desk_runner import run_desk_review
@@ -63,6 +64,19 @@ def _scan_id(events):
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:24]
 
 
+def _provider_failures(provider_status):
+    return sum(len(row.get('failures') or []) for row in (provider_status or {}).get('providers') or [])
+
+
+def _record_news_heartbeats(user_id,scan_mode,status,details,now):
+    processes=['portfolio_news'] if news_scan_mode(scan_mode)=='priority' else ['portfolio_news','watchlist_news']
+    records=[record_automation_heartbeat(user_id,process,status=status,details=details,now=now)
+             for process in processes]
+    failures=[record for record in records
+              if ((record or {}).get('persistence') or {}).get('status')=='FAILED']
+    return {'status':'FAILED' if failures else status,'records':records,'failures':len(failures)}
+
+
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
     now=datetime.now(ZoneInfo('America/New_York')); scan_mode=news_scan_mode(); run_key=news_run_key(now,scan_mode)
@@ -73,8 +87,9 @@ def main():
         notification=notify_material_brief(uid,brief,payload.get('review_run_key') or run_key)
         if notification.get('status')!='FAILED' and payload.get('actionable_events'):
             record_event_state(uid,payload['actionable_events'],now=now)
-        print(f"News scan reused | notification={notification.get('status')}")
-        return 1 if notification.get('status')=='FAILED' else 0
+        heartbeat=_record_news_heartbeats(uid,scan_mode,'REUSED',{'run_key':run_key},now)
+        print(f"News scan reused | notification={notification.get('status')} heartbeat={heartbeat['status']}")
+        return 1 if notification.get('status')=='FAILED' or heartbeat['status']=='FAILED' else 0
 
     positions=load_positions(user_id=uid)
     holdings=[] if positions.empty else positions['ticker'].dropna().astype(str).str.upper().tolist()
@@ -88,8 +103,11 @@ def main():
                  'actionable_events':[],'material_events':[],'suppressed_events':[],
                  'brief':{'headline':'No portfolio or active watchlist tickers','material':False,
                           'material_reasons':[],'approval_boundary':'Research only. No order was created.'}}
-        save_desk_output(uid,output_type,payload,run_key=run_key)
-        print(f'News {scan_mode} scan skipped: no eligible tickers'); return 0
+        saved=save_desk_output(uid,output_type,payload,run_key=run_key)
+        heartbeat=_record_news_heartbeats(uid,scan_mode,'IDLE',{'run_key':run_key,'monitored':0},now)
+        durable_failed=((saved.get('persistence') or {}).get('status')=='FAILED' or heartbeat['status']=='FAILED')
+        print(f"News {scan_mode} scan skipped: no eligible tickers | heartbeat={heartbeat['status']}")
+        return 1 if durable_failed else 0
 
     manual=os.getenv('GITHUB_EVENT_NAME','').lower()=='workflow_dispatch'
     stories,provider_status=collect_catalyst_stories(
@@ -122,14 +140,22 @@ def main():
         else:
             state_result=record_event_state(uid,actionable,now=now)
     payload['notification']=notification; payload['event_state']=state_result
-    save_desk_output(uid,output_type,payload,run_key=run_key)
+    saved=save_desk_output(uid,output_type,payload,run_key=run_key)
+    provider_failures=_provider_failures(provider_status)
+    completion_status='PARTIAL' if provider_failures else 'CURRENT'
+    heartbeat=_record_news_heartbeats(uid,scan_mode,completion_status,{
+        'run_key':run_key,'monitored':len(tickers),'stories':len(classified),'detected':len(detected),
+        'actionable':len(actionable),'provider_failures':provider_failures,
+    },now)
     append_agent_audit(uid,'news_catalyst_scan',{'run_key':run_key,'monitored':len(tickers),'stories':len(classified),
                        'detected':len(detected),'actionable':len(actionable),'material':len(material_events),
                        'suppressed':len(suppressed),'scan_mode':scan_mode,
-                       'providers':provider_status.get('providers',[]),'notification':notification,'shadow_mode':True})
+                       'providers':provider_status.get('providers',[]),'notification':notification,
+                       'heartbeat':heartbeat['status'],'shadow_mode':True})
     print(f"News {scan_mode} scan: stories={len(classified)} detected={len(detected)} actionable={len(actionable)} "
-          f"notification={notification.get('status')}")
-    return 1 if notification.get('status')=='FAILED' or state_result.get('status')=='FAILED' else 0
+          f"notification={notification.get('status')} heartbeat={heartbeat['status']}")
+    durable_failed=((saved.get('persistence') or {}).get('status')=='FAILED' or heartbeat['status']=='FAILED')
+    return 1 if notification.get('status')=='FAILED' or state_result.get('status')=='FAILED' or durable_failed else 0
 
 
 if __name__=='__main__': raise SystemExit(main())

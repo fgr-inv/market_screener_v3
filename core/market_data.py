@@ -229,6 +229,26 @@ def download_prices(tickers,period="2y",batch_size=80,max_age_minutes=PRICE_DISK
             data=yf.download(batch,period=period,interval='1d',group_by='ticker',auto_adjust=True,threads=True,progress=False)
             got=_extract(data,batch); out.update(got)
             for t,df in got.items(): _write_price_cache(t,period,df)
+            # yfinance can return a partial batch when one of its internal
+            # SQLite cache writes is briefly locked. Retry only missing names,
+            # serially and without provider threads.
+            unresolved=[t for t in batch if t not in got]
+            for t in unresolved:
+                if max_single_fallback is not None and single_fallbacks>=int(max_single_fallback): break
+                single_fallbacks+=1
+                for attempt in range(3):
+                    try:
+                        single=yf.download(t,period=period,interval='1d',auto_adjust=True,
+                                           progress=False,threads=False)
+                        if single is not None and not single.empty:
+                            df=single.dropna(how='all').copy(); out[t]=df; _write_price_cache(t,period,df)
+                        break
+                    except Exception as exc:
+                        locked='database is locked' in str(exc).lower()
+                        if not locked or attempt>=2:
+                            log_exception('yahoo_single_download_error',exc,ticker=t,period=period)
+                            break
+                        time.sleep(.25*(2**attempt))
         except Exception as exc:
             log_exception('yahoo_batch_download_error',exc,batch_size=len(batch),period=period)
             for t in batch:

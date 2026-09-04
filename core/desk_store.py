@@ -22,12 +22,15 @@ def save_desk_output(user_id, output_type, payload, run_key=None):
     p=DIR/f'{_safe(uid)}_{typ}.json'
     p.write_text(json.dumps(rec,ensure_ascii=False,default=str,indent=2),encoding='utf-8')
     _run_path(uid,typ,key).write_text(json.dumps(rec,ensure_ascii=False,default=str,indent=2),encoding='utf-8')
+    persistence={'status':'LOCAL_ONLY','message':'DATABASE_URL not configured'}
     if cloud_available():
         ensure_production_schema()
-        execute_sql('''INSERT INTO user_agent_outputs(user_id,output_type,run_key,created_at,payload_json)
+        ok,message=execute_sql('''INSERT INTO user_agent_outputs(user_id,output_type,run_key,created_at,payload_json)
             VALUES (:uid,:typ,:key,:ts,:payload)
             ON CONFLICT (user_id,output_type,run_key) DO UPDATE SET created_at=EXCLUDED.created_at,payload_json=EXCLUDED.payload_json''',
             {'uid':uid,'typ':typ,'key':key,'ts':ts,'payload':json.dumps(payload,ensure_ascii=False,default=str)})
+        persistence={'status':'CURRENT' if ok else 'FAILED','message':message}
+    rec['persistence']=persistence
     return rec
 
 def load_desk_output(user_id, output_type, run_key):

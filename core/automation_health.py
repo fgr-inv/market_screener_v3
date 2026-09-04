@@ -122,8 +122,10 @@ def build_automation_health(user_id,now=None,current_failures=None):
                              True,alert_limit,local_now,'Cada 15 min en mercado; cada hora fuera de mercado.'))
     checks.append(_check_age('intraday_desk',load_latest_desk_output(uid,'event_scan'),cash_window,55,local_now,
                              'Cartera y watchlist prioritaria durante la sesión de EE. UU.'))
-    full_news=load_latest_desk_output(uid,'news_catalyst_scan')
-    priority_news=load_latest_desk_output(uid,'news_catalyst_priority_scan')
+    full_news=(load_latest_desk_output(uid,'automation_heartbeat_watchlist_news') or
+               load_latest_desk_output(uid,'news_catalyst_scan'))
+    priority_news=(load_latest_desk_output(uid,'automation_heartbeat_portfolio_news') or
+                   load_latest_desk_output(uid,'news_catalyst_priority_scan'))
     priority_source=priority_news or full_news
     priority_limit=80 if priority_news else 45
     priority_detail=('Solo posiciones actuales; cada 30 minutos.' if priority_news else
