@@ -12,7 +12,13 @@ model=get_active_model(); st.info(f"Active model: **{model_label()}** · Effecti
 pit=point_in_time_status('SP500')
 st.warning('Backtest Quality: TECHNICAL POINT-IN-TIME ONLY · historical constituents '+('AVAILABLE' if pit.get('available') else 'MISSING / survivorship-bias risk'))
 with st.expander('Model weights'):
-    st.json(model)
+    weights=model.get('weights') or {}
+    weight_rows=[{'Factor':str(name).replace('_',' ').title(),'Weight %':round(float(value)*100,2)} for name,value in weights.items()]
+    if weight_rows:
+        st.dataframe(pd.DataFrame(weight_rows),width='stretch',hide_index=True)
+    st.caption(f"Modelo: {model.get('name','N/D')} · Versión: {model.get('version','N/D')} · Vigente desde: {model.get('effective_date','N/D')}")
+    if model.get('notes'):
+        st.caption(str(model['notes']))
 
 ticker=st.text_input('Ticker','SPY').strip().upper()
 entry_min=st.slider('Entry Score minimum',40,90,65)

@@ -17,7 +17,14 @@ def technical_chart(hist,title=None):
 
 def macro_components_chart(m):
     labels=["Breadth","Credit","Risk Appetite","Rates","Liquidity","Growth","Inflation (inverse)"]
-    vals=[m["Breadth"],m["Credit"],m["Risk_Appetite"],m["Rates"],m["Liquidity"],m["Growth"],100-m["Inflation_Pressure"]]
+    def value(key,*fallbacks):
+        for candidate in (key,)+fallbacks:
+            try: return float((m or {}).get(candidate))
+            except (TypeError,ValueError): pass
+        return 50.0
+    vals=[value("Breadth"),value("Credit"),value("Risk_Appetite","Macro_Score"),
+          value("Rates","Slow_Policy"),value("Liquidity"),value("Growth","Slow_Growth"),
+          100-value("Inflation_Pressure","Slow_Inflation_Pressure")]
     fig=go.Figure(go.Bar(x=vals,y=labels,orientation="h",text=[f"{v:.0f}" for v in vals],textposition="auto"))
     fig.update_layout(height=360,xaxis=dict(range=[0,100],title="Score"),margin=dict(l=10,r=10,t=10,b=30))
     return fig

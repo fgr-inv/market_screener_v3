@@ -1,6 +1,61 @@
 
 import html
+import math
+
+import pandas as pd
 import streamlit as st
+
+
+def safe_error(message, exc=None, event='ui_action_error', **fields):
+    """Show a stable user message while keeping technical details in logs.
+
+    Provider, database and parsing exceptions can contain SQL, file paths, URLs or
+    stack fragments. Those details are useful for observability but should not be
+    rendered as part of the application UI.
+    """
+    if exc is not None:
+        try:
+            from core.monitoring import log_exception
+            log_exception(event, exc, **fields)
+        except Exception:
+            pass
+    st.error(str(message))
+
+
+def display_value(value):
+    """Return a readable scalar string for mixed-value UI tables.
+
+    Streamlit/PyArrow logs a full conversion traceback when one object column
+    mixes numbers, strings and containers. Rendering a stable display string
+    avoids that console noise without changing the underlying calculations.
+    """
+    if value is None:
+        return 'N/D'
+    if isinstance(value, bool):
+        return 'Sí' if value else 'No'
+    if isinstance(value, dict):
+        return ' · '.join(f'{key}: {display_value(item)}' for key,item in value.items()) or 'N/D'
+    if isinstance(value, (list, tuple, set)):
+        return ', '.join(display_value(item) for item in value) or 'N/D'
+    try:
+        if pd.isna(value):
+            return 'N/D'
+    except Exception:
+        pass
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return 'N/D'
+        return f'{value:,.4f}'.rstrip('0').rstrip('.')
+    return str(value)
+
+
+def key_value_frame(items, key_label='Metric', value_label='Value'):
+    """Build an Arrow-safe two-column dataframe for UI presentation."""
+    pairs=items.items() if isinstance(items,dict) else items
+    return pd.DataFrame([
+        {key_label:str(key).replace('_',' '),value_label:display_value(value)}
+        for key,value in pairs
+    ],columns=[key_label,value_label])
 
 def inject_css():
     st.markdown("""

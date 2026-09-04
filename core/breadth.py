@@ -26,7 +26,9 @@ def _breadth(df,pm,name):
 def composite_breadth(universes,pm):
     rows=[_breadth(df,pm,name) for name,df in universes.items()]
     tab=pd.DataFrame(rows)
-    weights={"S&P 500":.50,"Nasdaq 100":.30,"Fallback líquido":.20}
+    # Broad-market breadth avoids letting mega-cap Nasdaq constituents dominate
+    # the reading while still retaining a focused growth/technology overlay.
+    weights={"S&P 500":.50,"S&P MidCap 400":.25,"S&P SmallCap 600":.15,"Nasdaq 100":.10}
     valid=[r for r in rows if pd.notna(r.get("Score")) and weights.get(r["Universe"],0)>0]
     denom=sum(weights[r["Universe"]] for r in valid)
     comp=sum(r["Score"]*weights[r["Universe"]] for r in valid)/denom if denom else np.nan

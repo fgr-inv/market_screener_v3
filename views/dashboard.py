@@ -33,7 +33,7 @@ if refresh:
         status.update(label='Mercado actualizado',state='complete',expanded=False)
 
 m=st.session_state.macro_snapshot; results=st.session_state.scan_results; sectors=st.session_state.sector_snapshot
-if m is None or results is None:
+if m is None or results is None or results.empty:
     st.warning('No existe snapshot. Ejecutá **Actualizar mercado ahora** o el workflow Daily market snapshot.'); st.stop()
 
 fresh=freshness_score(st.session_state.last_refresh_label,max_age_hours=36)

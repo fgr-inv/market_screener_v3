@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.ui import hero,section_note
+from core.ui import hero,section_note,display_value
 from core.access_control import current_user
 from core.market_data import download_prices
 from core.storage import load_positions,load_json_snapshot,load_latest_snapshot
@@ -19,10 +19,13 @@ from core.skill_governance import (build_paper_readiness_report,load_skill_gover
                                    save_skill_governance)
 from core.production_storage import storage_mode
 from core.news_catalyst_data import merge_news_scan_records
+from core.continuous_improvement import (apply_improvement_policy,load_active_improvement_policy,
+                                         load_latest_improvement_review)
 
 hero('Investment Desk','CIO + Market/Sector + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. A broad daily hunt discovers candidates, the news agent monitors portfolio + persistent watchlist, and specialists wake only for relevant events. It never sends broker orders.')
 user=current_user(); uid=user['user_id']
+improvement_policy=load_active_improvement_policy(uid)
 
 hunt=load_latest_desk_output(uid,'daily_opportunity_hunt')
 if hunt and hunt.get('payload'):
@@ -31,12 +34,16 @@ if hunt and hunt.get('payload'):
     shortlist=discovery.get('candidates') or []
     monitored=discovery.get('monitor_tickers') or []
     st.subheader('Daily Opportunity Hunt')
-    st.caption(f"Broad scan → diversified shortlist → Technical + Fundamental + Verification · {hunt.get('created_at','N/D')} · SHADOW MODE")
+    st.caption(f"Expanded US scan → diversified shortlist → Technical + Fundamental + Verification · {hunt.get('created_at','N/D')} · SHADOW MODE")
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Universe screened',discovery.get('universe_rows',0))
     c2.metric('Deep-review shortlist',len(shortlist))
     c3.metric('Verified candidates',len(verified))
     c4.metric('Intraday monitored',len(monitored))
+    source_counts=discovery.get('universe_source_counts') or hp.get('universe_source_counts') or {}
+    if source_counts:
+        st.caption('Universe coverage: '+', '.join(f'{name}: {count}' for name,count in source_counts.items()))
+        st.caption('Coverage includes large, mid and small caps. Non-core names must pass the $2 price and $5M average 20-day dollar-volume gates.')
     status=hp.get('status') or discovery.get('status','N/D')
     if verified:
         st.success(f"{len(verified)} candidate(s) passed both specialist and evidence gates. Research ranking only.")
@@ -80,7 +87,14 @@ if news_scan or priority_news_scan:
     else:
         st.info('No new material catalyst was found in the latest automated scan.')
     with st.expander('Provider health',expanded=False):
-        st.dataframe(pd.DataFrame(provider_rows),width='stretch',hide_index=True)
+        provider_frame=pd.DataFrame(provider_rows)
+        if not provider_frame.empty:
+            columns=[column for column in ['provider','status','requests','scan_mode'] if column in provider_frame]
+            st.dataframe(provider_frame[columns],width='stretch',hide_index=True)
+            if 'status' in provider_frame and provider_frame['status'].astype(str).isin(['FAILED','DOWN']).any():
+                st.caption('Algún proveedor no respondió. El detalle técnico quedó guardado en los logs; los fallbacks continúan activos.')
+        else:
+            st.caption('No hay diagnósticos de proveedores para el último escaneo.')
 
 auto=load_latest_desk_output(uid,'daily_cio_brief') or load_latest_desk_output(uid,'scheduled_review')
 if auto and auto.get('payload'):
@@ -197,6 +211,30 @@ if stored_calibration:
     st.caption(f"Latest persisted weekly review: {stored_calibration.get('created_at','N/D')}.")
 st.caption('Governance only: Technical/News use 5d; Fundamental/CIO use 20d. Secondary horizons remain context. Correlated signals can reduce effective sample size. Reviews never rewrite skills or place trades.')
 
+improvement_record=load_latest_improvement_review(uid)
+improvement=(improvement_record or {}).get('payload') or {}
+st.subheader('Continuous Improvement')
+if not improvement:
+    st.info('The first weekly champion/challenger review has not run yet.')
+else:
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Status',improvement.get('status','N/D'))
+    c2.metric('Eligible segments',improvement.get('eligible_segments',0))
+    c3.metric('Auto adjustments',improvement.get('automatic_promotions',0))
+    c4.metric('Automatic scope','CONFIDENCE ONLY')
+    rows=improvement.get('candidates') or []
+    if rows:
+        columns=['agent','signal_state','skill_version','sample','unique_tickers','status',
+                 'champion_multiplier','challenger_multiplier','validation_sample','brier_improvement','reason']
+        frame=pd.DataFrame(rows)
+        st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
+    if improvement.get('promotions'):
+        st.success('Validated confidence adjustments were promoted within the 0.90–1.10 safety range.')
+    else:
+        st.caption('The current champion was retained; no challenger cleared every validation gate.')
+    st.caption(f"Latest persisted review: {improvement_record.get('created_at','N/D')}.")
+st.caption('Only confidence calibration can change automatically. Signal direction, thresholds, code, providers and execution require a reviewed release. GitHub Agent proposals never merge themselves.')
+
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
 st.subheader('Paper Readiness Gate')
 c1,c2,c3=st.columns(3)
@@ -209,7 +247,11 @@ elif paper_readiness['status']=='BLOCKED_REVIEW':
     st.warning('Evidence quantity is sufficient, but calibration/governance issues still block Paper Mode review.')
 else:
     st.info('The desk is still building forward evidence. This is the expected state until every readiness gate passes.')
-st.dataframe(pd.DataFrame(paper_readiness['gates']),width='stretch',hide_index=True)
+readiness_frame=pd.DataFrame(paper_readiness['gates'])
+for column in ('Value','Required'):
+    if column in readiness_frame:
+        readiness_frame[column]=readiness_frame[column].map(display_value)
+st.dataframe(readiness_frame,width='stretch',hide_index=True)
 st.caption(paper_readiness['approval_boundary'])
 
 pos=load_positions(user_id=uid)
@@ -232,17 +274,18 @@ if run:
         macro_snapshot=load_json_snapshot('latest_macro')
         snapshot_meta=load_json_snapshot('latest_meta')
         sector_snapshot=load_latest_snapshot('latest_sectors')
-        market_result=verify_result(analyze_market_regime(macro_snapshot,sector_snapshot,snapshot_meta))
+        market_result=verify_result(apply_improvement_policy(
+            analyze_market_regime(macro_snapshot,sector_snapshot,snapshot_meta),improvement_policy))
         verified.append(market_result)
         append_agent_audit(uid,'market_regime_verified',market_result.to_dict())
 
-        portfolio_result=verify_result(analyze_portfolio_risk(pos,histories))
+        portfolio_result=verify_result(apply_improvement_policy(analyze_portfolio_risk(pos,histories),improvement_policy))
         verified.append(portfolio_result)
         append_agent_audit(uid,'portfolio_risk_verified',portfolio_result.to_dict())
 
         for ticker in tickers:
             for result in (analyze_technical(ticker,histories.get(ticker)), analyze_fundamental(ticker,force_refresh=force)):
-                result=verify_result(result); verified.append(result)
+                result=verify_result(apply_improvement_policy(result,improvement_policy)); verified.append(result)
                 append_agent_audit(uid,'specialist_verified',result.to_dict())
                 b=result.metadata.get('data_budget') if getattr(result,'metadata',None) else None
                 if b: budget_rows.append({'Ticker':ticker,'Action':b.get('action'),'Reason':b.get('reason'),'Age hours':None if b.get('age_seconds') is None else round(b['age_seconds']/3600,1),'TTL days':round(b.get('ttl_seconds',0)/86400,1)})

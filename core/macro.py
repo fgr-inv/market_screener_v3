@@ -81,8 +81,23 @@ def calculate_macro_snapshot(pm,breadth_level=50):
     out=dict(now); out.update({"Macro_Score":s,"Macro_Score_20d_Ago":so,"Macro_Delta_20d":delta,"Risk_Regime":riskreg,"Economic_Regime":econ,"Momentum":mom})
     return out
 
+def _macro_value(m,key,*fallbacks,default=50):
+    for candidate in (key,)+fallbacks:
+        try:
+            value=float((m or {}).get(candidate,np.nan))
+            if pd.notna(value): return value
+        except Exception:
+            pass
+    return float(default)
+
 def sector_macro_score(sector,m):
-    r,c,ra,li,g,inf,b=m["Risk_Appetite"],m["Credit"],m["Rates"],m["Liquidity"],m["Growth"],m["Inflation_Pressure"],m["Breadth"]
+    r=_macro_value(m,"Rates","Slow_Policy")
+    c=_macro_value(m,"Credit")
+    ra=_macro_value(m,"Risk_Appetite","Macro_Score")
+    li=_macro_value(m,"Liquidity")
+    g=_macro_value(m,"Growth","Slow_Growth")
+    inf=_macro_value(m,"Inflation_Pressure","Slow_Inflation_Pressure")
+    b=_macro_value(m,"Breadth")
     if sector=="Technology": s=.25*ra+.20*li+.20*r+.15*c+.10*b+.10*g
     elif sector=="Industrials": s=.30*g+.20*c+.20*b+.15*r+.15*ra
     elif sector=="Materials": s=.35*g+.20*r+.15*c+.15*b+.15*inf

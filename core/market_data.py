@@ -27,9 +27,11 @@ def get_asset_presets(): return ASSET_PRESETS.copy()
 def get_market_symbols(): return ["SPY","QQQ","IWM","RSP","^VIX"]
 
 def _fallback_universe():
-    return pd.read_csv(ROOT/"data"/"fallback_universe.csv")
+    out=pd.read_csv(ROOT/"data"/"fallback_universe.csv")
+    out['Universe Source']='Curated Liquid Supplemental'
+    return out
 
-def _fetch_wikipedia(url,symbol_col,sector_col=None):
+def _fetch_wikipedia(url,symbol_col,sector_col=None,universe_source='Public index constituents'):
     headers={"User-Agent":"Mozilla/5.0 AppleWebKit/537.36 Chrome/124 Safari/537.36"}
     r=requests.get(url,headers=headers,timeout=20); r.raise_for_status()
     tables=pd.read_html(StringIO(r.text))
@@ -38,16 +40,37 @@ def _fetch_wikipedia(url,symbol_col,sector_col=None):
     out=pd.DataFrame()
     out["Ticker"]=table[symbol_col].astype(str).str.replace(".","-",regex=False).str.strip()
     out["Sector"]=table[sector_col].astype(str) if sector_col and sector_col in table.columns else "Unknown"
+    out['Universe Source']=universe_source
     return out.dropna().drop_duplicates("Ticker")
+
+
+def _combine_universe_frames(*frames):
+    usable=[frame.copy() for frame in frames if frame is not None and not frame.empty and 'Ticker' in frame]
+    if not usable: return pd.DataFrame(columns=['Ticker','Sector','Universe Source'])
+    out=pd.concat(usable,ignore_index=True)
+    out['Ticker']=out['Ticker'].astype(str).str.upper().str.strip()
+    out=out[out['Ticker']!=''].drop_duplicates('Ticker',keep='first')
+    if 'Sector' not in out: out['Sector']='Unknown'
+    if 'Universe Source' not in out: out['Universe Source']='Unknown'
+    return out[['Ticker','Sector','Universe Source']]
 
 @st.cache_data(ttl=21600,show_spinner=False)
 def load_universe(name):
     fb=_fallback_universe()
     if name=="Fallback líquido":
-        return fb[["Ticker","Sector"]].copy()
+        return fb[["Ticker","Sector","Universe Source"]].copy()
+    if name=="US Expanded Liquid":
+        return _combine_universe_frames(
+            load_universe('S&P 500'),load_universe('Nasdaq 100'),
+            load_universe('S&P MidCap 400'),load_universe('S&P SmallCap 600'),
+            load_universe('Fallback líquido'))
     try:
         if name=="S&P 500":
-            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies","Symbol","GICS Sector")
+            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies","Symbol","GICS Sector",'S&P 500')
+        if name=="S&P MidCap 400":
+            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_400_companies","Symbol","GICS Sector",'S&P MidCap 400')
+        if name=="S&P SmallCap 600":
+            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_600_companies","Symbol","GICS Sector",'S&P SmallCap 600')
         if name=="Nasdaq 100":
             headers={"User-Agent":"Mozilla/5.0 AppleWebKit/537.36 Chrome/124 Safari/537.36"}
             r=requests.get("https://en.wikipedia.org/wiki/Nasdaq-100",headers=headers,timeout=20); r.raise_for_status()
@@ -57,12 +80,15 @@ def load_universe(name):
                         return pd.DataFrame({
                             "Ticker":t[col].astype(str).str.replace(".","-",regex=False).str.strip(),
                             "Sector":t["GICS Sector"].astype(str) if "GICS Sector" in t.columns else "Unknown",
+                            "Universe Source":'Nasdaq 100',
                         }).drop_duplicates("Ticker")
     except Exception as exc:
         log_exception('universe_fetch_error',exc,universe=name)
     if name=="Nasdaq 100":
-        return fb[fb["Nasdaq100"]==True][["Ticker","Sector"]].copy()
-    return fb[["Ticker","Sector"]].copy()
+        return fb[fb["Nasdaq100"]==True][["Ticker","Sector","Universe Source"]].copy()
+    if name in {'S&P MidCap 400','S&P SmallCap 600'}:
+        return pd.DataFrame(columns=['Ticker','Sector','Universe Source'])
+    return fb[["Ticker","Sector","Universe Source"]].copy()
 
 def build_asset_universe(asset_type,preset=None,custom_text=""):
     if asset_type=="Acciones":
@@ -121,9 +147,10 @@ def _write_price_cache(ticker,period,df):
 
 
 @st.cache_data(ttl=HISTORICAL_PRICE_TTL,show_spinner=False)
-def download_prices(tickers,period="2y",batch_size=80,max_age_minutes=PRICE_DISK_MAX_AGE_MINUTES):
+def download_prices(tickers,period="2y",batch_size=80,max_age_minutes=PRICE_DISK_MAX_AGE_MINUTES,
+                    max_single_fallback=None):
     tickers=[t for t in dict.fromkeys(tickers) if t]
-    out={}; missing=[]
+    out={}; missing=[]; single_fallbacks=0
     for t in tickers:
         cached=_read_price_cache(t,period,max_age_minutes)
         if cached is not None: out[t]=cached
@@ -137,13 +164,17 @@ def download_prices(tickers,period="2y",batch_size=80,max_age_minutes=PRICE_DISK
         except Exception as exc:
             log_exception('yahoo_batch_download_error',exc,batch_size=len(batch),period=period)
             for t in batch:
+                if max_single_fallback is not None and single_fallbacks>=int(max_single_fallback): break
+                single_fallbacks+=1
                 try:
                     single=yf.download(t,period=period,interval='1d',auto_adjust=True,progress=False)
                     if single is not None and not single.empty:
                         df=single.dropna(how='all').copy(); out[t]=df; _write_price_cache(t,period,df)
                 except Exception as exc:
                     log_exception('yahoo_single_download_error',exc,ticker=t,period=period)
-    log_event('price_download',requested=len(tickers),returned=len(out),missing=len(tickers)-len(out),period=period)
+    log_event('price_download',requested=len(tickers),returned=len(out),missing=len(tickers)-len(out),period=period,
+              single_fallbacks=single_fallbacks,
+              single_fallback_limit='UNBOUNDED' if max_single_fallback is None else int(max_single_fallback))
     return out
 
 
@@ -317,19 +348,23 @@ def get_live_price(ticker):
     """
     return _get_live_price_shared(ticker)
 
-@st.cache_data(ttl=3600,show_spinner=False)
 def classify_symbol(ticker):
-    t=ticker.upper().strip()
+    """Classify common symbols without a provider request during page render.
+
+    Explicit suffixes and the configured ETF universe cover the built-in
+    symbols. Plain exchange tickers default to equities; Asset Analysis still
+    exposes a manual type override for uncommon instruments.
+    """
+    t=str(ticker or '').upper().strip()
+    if not t: return "Otro"
     if t.endswith("-USD"): return "Cripto"
     if t.endswith("=X"): return "Forex"
     if t.endswith("=F"): return "Commodity"
     if t.startswith("^"):
         return "Bono/Tasa" if t in {"^TNX","^TYX","^FVX","^IRX"} else "Índice"
-    try:
-        info=yf.Ticker(t).info or {}
-        qt=str(info.get("quoteType","")).upper()
-        if qt=="ETF": return "ETF"
-        if qt=="EQUITY": return "Acción"
-    except Exception as exc:
-        log_exception('symbol_classification_error',exc,ticker=t)
+    known_etfs={symbol for group in ASSET_PRESETS.get('ETFs',{}).values() for symbol in group}
+    known_etfs.update(SECTOR_ETFS.values())
+    known_etfs.update({'IBIT','FBTC','BITB','ARKB','GBTC','SMH','SOXX','XBI','KRE','VNQ','DIA'})
+    if t in known_etfs: return "ETF"
+    if re.fullmatch(r'[A-Z][A-Z0-9.-]{0,11}',t): return "Acción"
     return "Otro"

@@ -134,7 +134,8 @@ def test_v11362_workflow_and_ui_contract():
     assert 'if: always()' in alerts and 'run_automation_watchdog' in alerts
     assert "cron: '*/15 13-21 * * 1-5'" in intraday
     assert "cron: '35 11-23 * * 1-5'" in news and 'NEWS_SCAN_MODE' in news
-    assert 'APP_VERSION = "11.36.2"' in config
+    version=next(line.split('=',1)[1].strip().strip('"') for line in config.splitlines() if line.startswith('APP_VERSION'))
+    assert tuple(int(part) for part in version.split('.')) >= (11,36,2)
     assert 'Automation health' in view and 'Portfolio news (30 min)' in view
     new_code='\n'.join(Path(path).read_text(encoding='utf-8') for path in (
         'core/automation_health.py','scripts/run_automation_watchdog.py'))

@@ -1,8 +1,14 @@
+import logging
 import streamlit as st
 from core.config import APP_NAME,APP_VERSION
 from core.state import init_state
 from core.ui import inject_css
 from core.access_control import current_user
+
+# Third-party market providers can emit long transport diagnostics directly to
+# the Streamlit terminal. The app records failures through core.monitoring and
+# keeps the interactive console focused on actionable application messages.
+logging.getLogger('yfinance').setLevel(logging.CRITICAL)
 
 st.set_page_config(page_title=APP_NAME,page_icon='📈',layout='wide',initial_sidebar_state='expanded')
 init_state(); inject_css()

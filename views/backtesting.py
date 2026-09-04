@@ -40,6 +40,9 @@ section_note(f'Este backtest usa el modelo técnico de {detected} y evita usar f
 st.dataframe(summary,width='stretch',hide_index=True)
 
 st.subheader('Eventos')
-st.dataframe(events.sort_values('Date',ascending=False).head(250),width='stretch',hide_index=True)
+if events.empty:
+    st.info('No hubo señales que cumplieran los filtros seleccionados en el período analizado.')
+else:
+    st.dataframe(events.sort_values('Date',ascending=False).head(250),width='stretch',hide_index=True)
 
 st.warning('No incorpora slippage, gaps, impuestos ni ejecución real. Úsalo para validar la señal, no para prometer retornos.')

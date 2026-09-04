@@ -12,6 +12,7 @@ from core.free_market_providers import (
     bybit_derivatives_snapshot,
     okx_derivatives_snapshot,
 )
+from core.monitoring import log_exception
 
 
 def _check(name, fn):
@@ -19,8 +20,10 @@ def _check(name, fn):
     try:
         ok,detail=fn()
         return {'Provider':name,'Status':'OK' if ok else 'DEGRADED','Latency ms':round((time.time()-start)*1000),'Detail':detail}
-    except Exception as e:
-        return {'Provider':name,'Status':'DOWN','Latency ms':round((time.time()-start)*1000),'Detail':str(e)[:120]}
+    except Exception as exc:
+        log_exception('provider_health_check_error',exc,provider=name)
+        return {'Provider':name,'Status':'DOWN','Latency ms':round((time.time()-start)*1000),
+                'Detail':'Sin respuesta; ver logs del servidor'}
 
 
 def provider_health():

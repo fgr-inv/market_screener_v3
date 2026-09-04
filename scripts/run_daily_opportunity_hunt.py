@@ -61,7 +61,10 @@ def main():
 
     positions=load_positions(user_id=uid)
     holdings=[] if positions.empty else positions['ticker'].dropna().astype(str).str.upper().tolist()
-    discovery=discover_daily_candidates(snapshot,holdings,max_candidates=18,max_per_sector=3,minimum_score=60)
+    discovery=discover_daily_candidates(snapshot,holdings,max_candidates=24,max_per_sector=4,
+                                         minimum_score=60,max_per_universe=10)
+    if 'Universe Source' in snapshot:
+        discovery['universe_source_counts']={str(k):int(v) for k,v in snapshot['Universe Source'].value_counts().items()}
     shortlist=discovery.get('candidates') or []
     tickers=[row['Ticker'] for row in shortlist]
     candidate_sectors={str(row['Ticker']).upper():str(row.get('Sector') or 'Unknown') for row in shortlist}

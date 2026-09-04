@@ -4,7 +4,7 @@ from core.options_data import get_options_snapshot
 from core.crowding import get_crowding_snapshot
 from core.market_data import download_prices
 from core.liquidity import liquidity_score
-from core.ui import hero, section_note
+from core.ui import hero, section_note, key_value_frame
 from core.utils import fmt_pct, fmt_num
 
 hero('Options, Crowding & Liquidity','IV, expected move, put/call, short interest y execution risk.','Positioning Intelligence')
@@ -36,7 +36,7 @@ a.metric('Crowding Risk',crowd['Crowding_Risk'])
 b.metric('Short % Float',fmt_pct(crowd['Short_%_Float']))
 c.metric('Days to Cover',fmt_num(crowd['Short_Ratio_Days']))
 d.metric('Institutional Ownership',fmt_pct(crowd['Institution_%']))
-st.dataframe(pd.DataFrame([[k,v] for k,v in crowd.items()],columns=['Metric','Value']),width='stretch',hide_index=True)
+st.dataframe(key_value_frame(crowd),width='stretch',hide_index=True)
 
 st.subheader('Liquidity / Execution')
 a,b,c=st.columns(3)

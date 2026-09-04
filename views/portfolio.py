@@ -9,7 +9,7 @@ from core.storage import load_positions, load_theses, upsert_position, upsert_th
 from core.portfolio_positions import resolve_position_allocations
 from core.portfolio_metadata import infer_position_sectors, sector_is_missing
 from core.access_control import current_user
-from core.ui import hero, section_note
+from core.ui import hero, section_note, safe_error
 
 hero('Portfolio / Thesis','Posiciones, watchlist y tesis de inversión en un solo lugar.','Portfolio Research')
 user=current_user(); uid=user['user_id']
@@ -131,11 +131,15 @@ with thesis_tab:
         try:
             upsert_thesis(ticker,thesis,catalysts,invalidation,target,review,status,note,user_id=uid)
             st.success('Tesis guardada.'); st.rerun()
-        except Exception as exc: st.error(f'No se pudo guardar: {exc}')
+        except Exception as exc:
+            safe_error('No se pudo guardar la tesis. Intentá nuevamente.',exc,
+                       event='portfolio_thesis_save_error',user_id=uid,ticker=ticker)
     if c2.button('Eliminar tesis',width='stretch'):
         try:
             delete_thesis(ticker,user_id=uid); st.rerun()
-        except Exception as exc: st.error(f'No se pudo eliminar: {exc}')
+        except Exception as exc:
+            safe_error('No se pudo eliminar la tesis. Intentá nuevamente.',exc,
+                       event='portfolio_thesis_delete_error',user_id=uid,ticker=ticker)
     all_theses=load_theses(user_id=uid)
     if not all_theses.empty:
         st.subheader('Tesis guardadas'); st.dataframe(all_theses,width='stretch',hide_index=True)

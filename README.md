@@ -569,3 +569,35 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Discord receives one incident alert when a process is missing, stale or failed, a reminder only after six hours, and one recovery notice. Alert Center shows the same `HEALTHY`/`DEGRADED` state.
 - Frequent heartbeats overwrite a fixed latest record, preventing the health system from creating an unbounded database row per 15-minute run.
 - No new agent, paid provider, secret or broker capability is introduced. V11.36.2 remains research-only Shadow Mode.
+
+## V11.37 — Continuous Improvement & GitHub Agent Governance
+- Adds a weekly deterministic champion/challenger review using matured Shadow outcomes at each agent's primary horizon.
+- Candidate confidence calibration is learned on the older chronological sample and must improve Brier score on a separate, newer validation sample before promotion.
+- Automatic changes are strictly limited to an exact agent/state/skill-version confidence multiplier between 0.90 and 1.10. A minimum of 30 matured outcomes, 20 training observations, 10 validation observations and five unique tickers is required.
+- Higher-confidence candidates are additionally blocked unless validation hit rate is at least 50% and directional alpha versus SPY is positive.
+- The active policy is user-scoped, persisted in the existing database, applied by manual and scheduled Investment Desk reviews, and retains the prior multiplier as a rollback reference.
+- Investment Desk exposes the latest review, champion/challenger metrics, eligibility, promotions and the automatic-change boundary. Discord receives one deduplicated weekly review.
+- Automation Watchdog monitors the new weekly job after it becomes due.
+- Adds `.github/agents/investment-desk-maintainer.agent.md`, a custom GitHub coding agent profile that investigates findings, runs the full test suite and prepares pull requests. It is explicitly forbidden from merging, deploying, pushing to `main`, weakening governance or adding broker execution.
+- Signal direction, thresholds, model structure, providers and source-code changes remain human-reviewed releases. V11.37 remains Shadow Mode and never sends, edits or cancels an order.
+
+## V11.38 — Professional Discord Intelligence + Expanded US Universe
+- Discord CIO alerts now combine the triggering event with verified specialist evidence, explicit contradictions, portfolio concentration, market regime, source provenance and confirmation/base/invalidation scenarios.
+- Saved-alert notifications add the current technical structure, Entry/Trend/Risk scores, relative volume and strength, EMA distances, model risk levels, portfolio exposure and broad-market context. Existing Discord and Slack webhooks remain compatible.
+- Reports remain bounded to Discord platform limits, deduplicated by the existing run keys and informational only. Technical levels are labeled as model references, not personalized trade instructions.
+- The automated daily snapshot expands beyond the S&P 500 and Nasdaq-100 to the S&P MidCap 400, S&P SmallCap 600 and the curated supplemental universe, targeting roughly 1,500–1,650 distinct US equities before data-quality exclusions.
+- Non-core additions must trade above $2 and average at least $5 million in 20-day dollar volume. Index provenance and liquidity tier are retained in the snapshot and opportunity report.
+- Broad discovery still runs only once after the close. A 24-name, sector- and source-diversified shortlist receives the deeper Technical + Fundamental + Verification review; the intraday monitor remains bounded to portfolio and persistent watchlist names.
+- Breadth now weights large, mid and small capitalization universes. No new secret, paid provider or broker permission is required, and the system remains in Shadow Mode.
+
+### V11.38.1 — UI Runtime Hardening
+- Audited every registered Streamlit page plus the main execution paths for visible tracebacks, raw code and raw JSON output.
+- Replaced developer-style JSON blocks with professional metrics and readable tables in Model Validation, Daily Review and Advanced Derivatives.
+- Normalized mixed-value tables before Streamlit/PyArrow serialization, eliminating conversion stack traces from the runtime console.
+- Sector Rotation, Dashboard and Backtesting now handle empty provider/snapshot/result data with explicit user messages instead of `KeyError` or missing-column failures.
+- Symbol classification is deterministic for configured assets and common ETFs, so opening Cross Asset or Asset Analysis no longer performs a hidden Yahoo metadata request.
+- Partial or older macro snapshots no longer crash sector-aware analysis when a component is missing.
+- Technical Asset Analysis skips the news-provider request by design; Fundamental/Complete modes retain the catalyst layer.
+- Database/provider exception details and stack traces remain in structured server logs and are no longer printed in normal user-facing pages.
+- Interrupted Streamlit analyses release or recover their concurrent-job lease, preventing a failed request from blocking the next run.
+- V11.38.1 changes presentation and resilience only. It remains research-only Shadow Mode with no broker execution path.

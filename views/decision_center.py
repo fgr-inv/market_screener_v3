@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.ui import hero, section_note, badge
+from core.ui import hero, section_note, badge, key_value_frame
 from core.decision_engine import decision_summary
 from core.storage import load_score_history
 from core.model_registry import model_label
@@ -37,5 +37,5 @@ with b:
 
 st.subheader('Score trace')
 show={k:row.get(k) for k in ['Technical_Score','Trend_Score','Entry_Score','Risk_Score','Quality_Score','Valuation_Score','Revision_Score','RS_Percentile','Sector_Score','Macro_Fit','Confidence_Score','Model_Coverage_%','Available_Factors','Opportunity_Score','Event_Risk','Action']}
-st.dataframe(pd.DataFrame(list(show.items()),columns=['Component','Value']),width='stretch',hide_index=True)
+st.dataframe(key_value_frame(show,'Component','Value'),width='stretch',hide_index=True)
 section_note('Decision Center does not auto-execute trades. It makes the final rationale explicit and auditable.')

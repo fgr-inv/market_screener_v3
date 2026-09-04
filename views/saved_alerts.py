@@ -9,7 +9,7 @@ from core.market_data import download_prices
 from core.alerts_engine import evaluate_rule, send_webhook, webhook_status, build_discord_channel_test
 from core.notification_settings import get_user_webhook, set_user_webhook, clear_user_webhook, masked_webhook
 from core.production_storage import storage_mode, cloud_available
-from core.ui import hero, section_note
+from core.ui import hero, section_note, safe_error
 from core.access_control import current_user
 from core.plans import plan_config
 
@@ -50,7 +50,7 @@ m2.metric('Active',int(alerts['enabled'].fillna(False).sum()) if not alerts.empt
 m3.metric('Storage',mode)
 m4.metric('Notifications',channel['provider'] if channel['configured'] else 'NOT CONFIGURED')
 
-if not health.get('ok'): st.error(f"Storage error: {health.get('message','sin detalle')}")
+if not health.get('ok'): st.error('El almacenamiento de alertas no está disponible. Revisá DATABASE_URL o System Health.')
 elif cloud_available(): st.success('Persistencia Postgres activa: Streamlit y GitHub Actions comparten el mismo estado.')
 else: st.warning('Modo local: sirve para desarrollo, pero Streamlit Cloud puede perder estado. Para alertas automáticas usá DATABASE_URL.')
 st.subheader('Canal de notificaciones')
@@ -61,11 +61,15 @@ with st.expander('Configurar webhook personal', expanded=not channel['configured
     if wc1.button('Guardar webhook',width='stretch'):
         try:
             set_user_webhook(uid,webhook_input,enabled=True); st.success('Webhook guardado.'); st.rerun()
-        except Exception as exc: st.error(str(exc))
+        except Exception as exc:
+            safe_error('No se pudo guardar el webhook. Verificá que sea una URL HTTPS válida de Discord o Slack.',exc,
+                       event='notification_webhook_save_error',user_id=uid)
     if wc2.button('Eliminar webhook',width='stretch'):
         try:
             clear_user_webhook(uid); st.success('Webhook eliminado.'); st.rerun()
-        except Exception as exc: st.error(str(exc))
+        except Exception as exc:
+            safe_error('No se pudo eliminar el webhook. Intentá nuevamente.',exc,
+                       event='notification_webhook_delete_error',user_id=uid)
 if not channel['configured']:
     st.warning('No tenés un canal configurado. Las reglas se evaluarán, pero no podrán enviarte avisos.')
 else:
@@ -98,7 +102,9 @@ if submitted:
         try:
             aid=add_alert(ticker,rule_type,threshold,note,cooldown_minutes=cooldown,repeat_while_true=repeat,enabled=enabled,user_id=uid)
             st.success(f'Alerta #{aid} creada para {ticker}.'); st.rerun()
-        except Exception as exc: st.error(f'No se pudo guardar la alerta: {exc}')
+        except Exception as exc:
+            safe_error('No se pudo guardar la alerta. Revisá el ticker y los valores ingresados.',exc,
+                       event='saved_alert_create_error',user_id=uid,ticker=ticker)
 
 st.divider(); st.subheader('Tus alertas')
 if alerts.empty:
@@ -122,7 +128,9 @@ else:
                     try:
                         hit,msg=evaluate_rule(r,pm,spy); rows.append({'ID':r['id'],'Ticker':r['ticker'],'Condición':RULE_LABELS.get(r['rule_type'],r['rule_type']),'Se cumple':bool(hit),'Resultado':msg})
                     except Exception as exc:
-                        rows.append({'ID':r['id'],'Ticker':r['ticker'],'Condición':r['rule_type'],'Se cumple':False,'Resultado':f'ERROR: {exc}'})
+                        from core.monitoring import log_exception
+                        log_exception('saved_alert_manual_evaluation_error',exc,alert_id=r['id'],ticker=r['ticker'])
+                        rows.append({'ID':r['id'],'Ticker':r['ticker'],'Condición':r['rule_type'],'Se cumple':False,'Resultado':'No disponible temporalmente'})
                 st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 
     st.subheader('Administrar')
@@ -133,12 +141,16 @@ else:
         current=bool(alerts.loc[alerts['id']==aid,'enabled'].iloc[0]); value=st.checkbox('Activa',value=current,key=f'enabled_{aid}')
         if st.button('Guardar estado',width='stretch'):
             try: set_alert_enabled(aid,value,user_id=uid); st.success('Estado actualizado.'); st.rerun()
-            except Exception as exc: st.error(str(exc))
+            except Exception as exc:
+                safe_error('No se pudo actualizar el estado de la alerta. Intentá nuevamente.',exc,
+                           event='saved_alert_state_error',user_id=uid,alert_id=aid)
     with c2:
         did=st.selectbox('Eliminar',ids,format_func=lambda x:options[x],key='delete_alert')
         confirm=st.checkbox('Confirmo que quiero eliminarla',key=f'confirm_delete_{did}')
         if st.button('🗑️ Eliminar alerta',disabled=not confirm,width='stretch'):
             try: delete_alert(did,user_id=uid); st.success('Alerta eliminada.'); st.rerun()
-            except Exception as exc: st.error(str(exc))
+            except Exception as exc:
+                safe_error('No se pudo eliminar la alerta. Intentá nuevamente.',exc,
+                           event='saved_alert_delete_error',user_id=uid,alert_id=did)
 
 section_note('Por defecto se avisa una sola vez al pasar FALSE → TRUE. Si el envío falla, el runner conserva la alerta sin armar para reintentar en la próxima ejecución. “Repetir” permite nuevos avisos tras el cooldown.')

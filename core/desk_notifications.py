@@ -10,7 +10,7 @@ from core.notification_settings import get_user_webhook
 from core.desk_store import load_desk_output,save_desk_output
 
 
-REPORT_VERSION='2.0'
+REPORT_VERSION='3.0'
 COLORS={'POSITIVE':0x2ECC71,'NEGATIVE':0xE74C3C,'WARNING':0xF39C12,'NEUTRAL':0x3498DB}
 STATE_LABELS={
     'SETUP':'Setup técnico','WATCH':'En observación','BROKEN_SETUP':'Setup invalidado',
@@ -86,6 +86,14 @@ def _event_field(event,index=0):
     impact=THESIS_LABELS.get(str(story.get('thesis_impact') or ''),str(story.get('thesis_impact') or '').replace('_',' ').title())
     if impact: lines.append(f'🧩 Tesis: {impact}')
     if story.get('published_at'): lines.append(f'🕒 {_discord_time(story.get("published_at"))}')
+    metrics=event.get('metrics') or {}; market_bits=[]
+    metric_labels=(('price_move_pct','precio','%'),('relative_volume','volumen relativo','x'),
+                   ('entry_score','Entry Score',''),('entry_score_change','Δ Entry Score',''),
+                   ('opportunity_score','Opportunity Score',''),('fundamental_score_change','Δ fundamental',''))
+    for key,label,suffix in metric_labels:
+        value=metrics.get(key)
+        if value is not None: market_bits.append(f'{label}: **{value}{suffix}**')
+    if market_bits: lines.append('📈 '+ ' · '.join(market_bits[:4]))
     source=_clip(story.get('publisher') or (event.get('metrics') or {}).get('source'),100)
     url=_safe_url(story.get('url'))
     source_status='Fuente primaria' if story.get('primary_source') else 'Fuente secundaria; confirmar documento original'
@@ -103,7 +111,16 @@ def _opportunity_text(rows):
         try: score_text=f'{float(score):.1f}'
         except Exception: pass
         technical=_state(row.get('Technical','N/D')); fundamental=_state(row.get('Fundamental','N/D'))
-        lines.append(f'**{ticker}** · prioridad **{score_text}** · Técnico: {technical} · Fundamental: {fundamental}')
+        sector=_clip(row.get('Sector') or 'Sector N/D',45); source=_clip(row.get('Universe Source') or '',38)
+        details=[]
+        for key,label in (('Entry Score','Entry'),('Trend Score','Trend'),('Portfolio Fit','Portfolio fit'),('Market Fit','Market fit')):
+            try: details.append(f'{label} {float(row.get(key)):.0f}')
+            except Exception: pass
+        try: details.append(f"R/R {float(row.get('RR')):.2f}")
+        except Exception: pass
+        first=f'**{ticker}** · prioridad **{score_text}** · Técnico: {technical} · Fundamental: {fundamental}'
+        second=' · '.join(part for part in ([sector,source]+details) if part)
+        lines.append(first+('\n↳ '+second if second else ''))
     return '\n'.join(lines)
 
 
@@ -115,6 +132,81 @@ def _decision_text(rows):
         verification=VERIFICATION_LABELS.get(verification,verification.replace('_',' ').title())
         lines.append(f'**{subject}** · {state} · confianza {_pct(row.get("confidence"))} · verificación: {verification}')
     return '\n'.join(lines)
+
+
+def _evidence_text(row):
+    values=[]
+    for evidence in row.get('key_evidence') or []:
+        claim=_clip(evidence.get('claim'),65); value=evidence.get('value')
+        if isinstance(value,float): value=round(value,3)
+        detail=f'{claim}: **{value}**' if value not in (None,'') else claim
+        if evidence.get('note'): detail+=f" ({_clip(evidence.get('note'),90)})"
+        if detail: values.append(detail)
+        if len(values)>=2: break
+    return ' · '.join(values)
+
+
+def _professional_analysis_text(brief,max_items=3):
+    rows=list(brief.get('decisions_needed') or brief.get('decisions') or [])
+    lines=[]
+    for row in rows[:max_items]:
+        ticker=str(row.get('subject') or 'MERCADO').upper(); agent=_clip(row.get('agent'),45)
+        verification=str(row.get('verification_status') or 'NOT_CHECKED').upper()
+        verification=VERIFICATION_LABELS.get(verification,verification.replace('_',' ').title())
+        lines.append(f"**{ticker} · {agent}** — {_state(row.get('state'))} · confianza {_pct(row.get('confidence'))} · {verification}")
+        evidence=_evidence_text(row)
+        if evidence: lines.append('↳ Evidencia: '+evidence)
+        contradictions=row.get('contradicting_evidence') or []
+        if contradictions: lines.append('↳ ⚠️ Contraste: '+_clip(contradictions[0],240))
+    return '\n'.join(lines)
+
+
+def _portfolio_detail(risk):
+    context=(risk or {}).get('professional_context') or {}; lines=[]
+    positions=context.get('largest_positions') or []
+    sectors=context.get('largest_sectors') or []
+    if positions:
+        lines.append('Mayores posiciones: '+', '.join(f'{ticker} {float(weight):.1%}' for ticker,weight in positions[:3]))
+    if sectors:
+        lines.append('Mayores sectores: '+', '.join(f'{sector} {float(weight):.1%}' for sector,weight in sectors[:3]))
+    if context.get('cash_pct') is not None: lines.append(f"Efectivo/no asignado: {float(context['cash_pct']):.1f}%")
+    return '\n'.join(lines)
+
+
+def _market_detail(market):
+    context=(market or {}).get('professional_context') or {}; lines=[]
+    metrics=[]
+    if context.get('macro_score') is not None: metrics.append(f"Macro **{float(context['macro_score']):.0f}/100**")
+    if context.get('vix') is not None: metrics.append(f"VIX **{float(context['vix']):.1f}**")
+    if context.get('momentum'): metrics.append(f"Momentum **{_clip(context['momentum'],35)}**")
+    if metrics: lines.append(' · '.join(metrics))
+    leaders=context.get('leaders') or []; laggards=context.get('laggards') or []
+    if leaders: lines.append('Liderazgo: '+', '.join(_clip(item,35) for item in leaders[:3]))
+    if laggards: lines.append('Rezago: '+', '.join(_clip(item,35) for item in laggards[:3]))
+    age=context.get('snapshot_age_hours')
+    if age is not None: lines.append(f'Antigüedad del snapshot: {float(age):.1f} h')
+    return '\n'.join(lines)
+
+
+def _scenario_text(brief):
+    states={str(row.get('state') or '').upper() for row in brief.get('decisions_needed') or []}
+    directions={str((((event.get('metrics') or {}).get('story') or {}).get('direction') or '')).upper()
+                for event in _material_events(brief)}
+    conflicts=sum(bool(row.get('contradicting_evidence')) for row in brief.get('decisions_needed') or [])
+    if states & {'MATERIAL_NEGATIVE','BROKEN_SETUP','DETERIORATING','HIGH_RISK','RISK_OFF'} or 'NEGATIVE' in directions:
+        confirmation='La alerta negativa se confirma si la próxima evidencia primaria o técnica mantiene el deterioro.'
+        base='Preservar capital y revisar exposición; no asumir que una caída aislada invalida toda la tesis.'
+        invalidation='Se debilita si el dato se revierte, la fuente primaria lo contradice o el precio recupera su estructura.'
+    elif states & {'MATERIAL_POSITIVE','SETUP','IMPROVING'} or 'POSITIVE' in directions:
+        confirmation='Exigir continuidad técnica y confirmación fundamental/primaria antes de elevar convicción.'
+        base='Mantener en observación mientras precio, negocio y contexto de cartera sigan alineados.'
+        invalidation='Pierde fuerza si falla el setup, aparece evidencia contradictoria o empeora la tesis.'
+    else:
+        confirmation='Esperar una señal adicional independiente antes de cambiar la convicción.'
+        base='Continuar monitoreando; la evidencia actual no justifica una conclusión fuerte.'
+        invalidation='Reevaluar ante un cambio material de precio, fundamentales, régimen o tesis.'
+    if conflicts: base+=f' Hay {conflicts} contradicción(es) explícita(s) que deben resolverse.'
+    return f'**Confirmación:** {confirmation}\n**Caso base:** {base}\n**Invalidación:** {invalidation}'
 
 
 def _next_action(brief):
@@ -161,22 +253,37 @@ def build_discord_cio_embed(brief,report_type='material'):
     market=brief.get('market_regime') or {}; risk=brief.get('principal_risk') or {}
     if daily:
         if str(market.get('state') or 'NOT_CHECKED')!='NOT_CHECKED':
-            fields.append(_field('🌎 Régimen de mercado',f'**{_state(market.get("state"))}** · confianza {_pct(market.get("confidence"))}\n{market.get("summary") or "Sin observación adicional."}'))
+            market_value=f'**{_state(market.get("state"))}** · confianza {_pct(market.get("confidence"))}\n{market.get("summary") or "Sin observación adicional."}'
+            market_detail=_market_detail(market)
+            if market_detail: market_value+='\n'+market_detail
+            fields.append(_field('🌎 Régimen de mercado',market_value))
         if str(risk.get('state') or 'NOT_CHECKED')!='NOT_CHECKED':
-            fields.append(_field('🛡️ Riesgo principal',f'**{_state(risk.get("state"))}**\n{risk.get("summary") or "Sin observación adicional."}'))
+            risk_value=f'**{_state(risk.get("state"))}**\n{risk.get("summary") or "Sin observación adicional."}'
+            portfolio_detail=_portfolio_detail(risk)
+            if portfolio_detail: risk_value+='\n'+portfolio_detail
+            fields.append(_field('🛡️ Riesgo principal',risk_value))
         opportunities=_opportunity_text(brief.get('top_opportunities'))
         if opportunities: fields.append(_field('🎯 Oportunidades verificadas',opportunities))
     for index,event in enumerate(events[:3]): fields.append(_event_field(event,index))
+    professional=_professional_analysis_text(brief)
+    if professional: fields.append(_field('🔎 Lectura profesional',professional))
     if not daily:
         if str(risk.get('state') or 'NOT_CHECKED')!='NOT_CHECKED':
-            fields.append(_field('🛡️ Riesgo principal',f'**{_state(risk.get("state"))}**\n{risk.get("summary") or "Sin observación adicional."}'))
+            risk_value=f'**{_state(risk.get("state"))}**\n{risk.get("summary") or "Sin observación adicional."}'
+            portfolio_detail=_portfolio_detail(risk)
+            if portfolio_detail: risk_value+='\n'+portfolio_detail
+            fields.append(_field('🛡️ Riesgo principal',risk_value))
         if str(market.get('state') or 'NOT_CHECKED')!='NOT_CHECKED':
-            fields.append(_field('🌎 Contexto de mercado',f'**{_state(market.get("state"))}** · confianza {_pct(market.get("confidence"))}\n{market.get("summary") or "Sin observación adicional."}'))
+            market_value=f'**{_state(market.get("state"))}** · confianza {_pct(market.get("confidence"))}\n{market.get("summary") or "Sin observación adicional."}'
+            market_detail=_market_detail(market)
+            if market_detail: market_value+='\n'+market_detail
+            fields.append(_field('🌎 Contexto de mercado',market_value))
     decisions=_decision_text(brief.get('decisions_needed'))
     if decisions: fields.append(_field('📋 Decisiones para revisar',decisions))
     reasons=list(brief.get('material_reasons') or [])
     if reasons and not events:
         fields.append(_field('⚠️ Motivos materiales','\n'.join(f'• {_clip(reason,430)}' for reason in reasons[:4])))
+    fields.append(_field('🧭 Escenarios y validación',_scenario_text(brief)))
     fields.append(_field('➡️ Próximo paso',_next_action(brief)))
     first_story=((((events[0].get('metrics') or {}).get('story') or {}) if events else {}))
     first_ticker=str(events[0].get('ticker') or '') if events else ''
@@ -218,7 +325,10 @@ def format_cio_alert(brief,report_type='material'):
         lines.append(f'  {_clip(story.get("title") or "; ".join(event.get("reasons") or []),500)}')
         if story.get('thesis_impact'): lines.append(f'  Tesis: {THESIS_LABELS.get(story.get("thesis_impact"),story.get("thesis_impact"))}')
         if _safe_url(story.get('url')): lines.append(f'  Fuente: {story.get("url")}')
-    lines.extend([f'➡️ {_next_action(brief)}','SHADOW MODE · Investigación solamente · Ninguna orden fue enviada.'])
+    professional=_professional_analysis_text(brief)
+    if professional: lines.extend(['🔎 Lectura profesional:',professional.replace('**','')])
+    lines.extend(['🧭 Escenarios:',_scenario_text(brief).replace('**',''),
+                  f'➡️ {_next_action(brief)}','SHADOW MODE · Investigación solamente · Ninguna orden fue enviada.'])
     return _clip('\n'.join(line for line in lines if str(line).strip()),3900)
 
 

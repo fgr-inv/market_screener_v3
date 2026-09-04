@@ -19,7 +19,7 @@ from core.confidence import confidence_score
 from core.explain import explain_opportunity
 from core.position_sizing import size_position
 from core.storage import load_score_history
-from core.ui import hero, badge, section_note
+from core.ui import hero, badge, section_note, key_value_frame
 from core.utils import fmt_money, fmt_num, fmt_pct
 from core.valuation import standalone_valuation_score
 from core.equity_sector_model import sector_fundamental_score, professional_equity_framework
@@ -89,6 +89,8 @@ symbols=list(dict.fromkeys([ticker,'SPY']+list(get_macro_symbols().values())+lis
 pm=download_prices(symbols,period='5y')
 raw=pm.get(ticker); spy=pm.get('SPY')
 if raw is None or raw.empty:
+    if _run_now:
+        end_job(_job_token,_user)
     st.error('No se pudieron obtener precios.'); st.stop()
 
 h=enrich_indicators(raw); final_type=effective_asset_type(ticker,normalize_asset_type(final_type))
@@ -254,7 +256,7 @@ st.write(row['Comment'])
 st.subheader('📐 Professional Technical Diagnostics')
 ta_keys=['Market_Structure','Weekly_State','FourH_State','Participation','Volatility_Regime','Technical_Location',
          'Anchored_VWAP','Dist_AVWAP_%','Volume_Profile_POC_Proxy','Relative_Volume_20d','Up_Down_Volume_20d','ATR_Percentile_1y']
-ta_table=pd.DataFrame([[k,row.get(k,'N/D')] for k in ta_keys],columns=['Technical dimension','Reading'])
+ta_table=key_value_frame([(k,row.get(k,'N/D')) for k in ta_keys],'Technical dimension','Reading')
 st.dataframe(ta_table,width='stretch',hide_index=True)
 st.caption(row.get('TA_Data_Note',''))
 
@@ -274,8 +276,8 @@ if final_type=='Acción' and research:
     st.caption(scen.get('Scenario_Note',''))
 
     st.markdown('**Estimate revisions & earnings evidence**')
-    rev_rows=[[k,v] for k,v in rev.items() if k not in {'Revision_Evidence'}]
-    st.dataframe(pd.DataFrame(rev_rows,columns=['Revision dimension','Reading']),width='stretch',hide_index=True)
+    rev_rows=[(k,v) for k,v in rev.items() if k not in {'Revision_Evidence'}]
+    st.dataframe(key_value_frame(rev_rows,'Revision dimension','Reading'),width='stretch',hide_index=True)
     if rev.get('Revision_Evidence'): st.caption(' · '.join(rev['Revision_Evidence']))
 
     st.markdown('**True business-model peer benchmark**')
@@ -318,13 +320,13 @@ if final_type=='Acción' and isinstance(institutional,dict):
     if dcf.get('available') and isinstance(dcf.get('Scenarios'),pd.DataFrame):
         st.dataframe(dcf['Scenarios'],width='stretch',hide_index=True)
     st.caption(val.get('Historical_Valuation_Note',''))
-    st.dataframe(pd.DataFrame([[k,v] for k,v in forensic.items() if k not in {'Evidence','Note'}],columns=['Financial-quality dimension','Reading']),width='stretch',hide_index=True)
+    st.dataframe(key_value_frame([(k,v) for k,v in forensic.items() if k not in {'Evidence','Note'}],'Financial-quality dimension','Reading'),width='stretch',hide_index=True)
     st.caption(forensic.get('Note',''))
 
 if final_type=='Commodity' and isinstance(institutional,dict):
     ci=institutional.get('Commodity',{})
     st.markdown('**Physical market / curve / positioning**')
-    st.dataframe(pd.DataFrame([[k,v] for k,v in ci.items() if k!='Raw_Context'],columns=['Commodity dimension','Reading']),width='stretch',hide_index=True)
+    st.dataframe(key_value_frame([(k,v) for k,v in ci.items() if k!='Raw_Context'],'Commodity dimension','Reading'),width='stretch',hide_index=True)
     st.caption(ci.get('Coverage_Note',''))
 
 fx=institutional.get('Factor_Exposure') if isinstance(institutional,dict) else None
@@ -377,7 +379,7 @@ with st.expander('💰 Position Sizing'):
 if final_type=='Acción':
     st.subheader('🏢 Corporate Fundamentals & Revisions')
     if fund and fund.get('error'):
-        st.warning(fund['error'])
+        st.warning('Los fundamentales no están disponibles temporalmente. El análisis técnico sigue siendo válido con la cobertura indicada.')
     elif fund:
         a,b,c,d=st.columns(4)
         a.metric('Professional Quality',f"{int(row.get('Quality_Score',fund['Fundamental_Score']))}/100"); b.metric('Valuation', 'N/D' if pd.isna(row.get('Valuation_Score')) else f"{int(row.get('Valuation_Score'))}/100")
@@ -388,7 +390,7 @@ if final_type=='Acción':
             st.caption('Fundamental data source: '+str(fund.get('Premium_Fundamentals_Source')))
         premium_metrics={k:fund.get(k) for k in ['ROIC','FCF_Yield','Piotroski_Score','Altman_Z_Score'] if k in fund and pd.notna(fund.get(k))}
         if premium_metrics:
-            st.dataframe(pd.DataFrame(list(premium_metrics.items()),columns=['Premium fundamental metric','Value']),width='stretch',hide_index=True)
+            st.dataframe(key_value_frame(premium_metrics,'Premium fundamental metric','Value'),width='stretch',hide_index=True)
         st.info(professional_equity_framework(row.get('Sector',normalize_sector(sector)),fund.get('Industry',''),ticker))
         if eq:
             m1,m2,m3,m4=st.columns(4)
@@ -427,7 +429,7 @@ else:
     st.info(row.get('Professional_Framework',professional_framework(ticker,final_type,sector)))
     ctx=get_asset_context(ticker,final_type,pm,macro)
     a,b=st.columns([1,3]); a.metric('Asset Context Score','N/D' if pd.isna(ctx.get('Asset_Context_Score')) else f"{ctx['Asset_Context_Score']}/100"); b.info(ctx.get('Framework','N/D'))
-    detail=pd.DataFrame([[k,v] for k,v in ctx.items() if k not in {'Asset_Context_Score','Framework'}],columns=['Metric','Value'])
+    detail=key_value_frame([(k,v) for k,v in ctx.items() if k not in {'Asset_Context_Score','Framework'}])
     st.dataframe(detail,width='stretch',hide_index=True)
 
     if final_type=='Cripto':
@@ -439,20 +441,20 @@ else:
         cc[0].metric('Regime',cyc.get('Crypto_Regime','N/D')); cc[1].metric('Cycle',f"{cyc.get('Cycle_Score',0)}/100"); cc[2].metric('Long-Term Opp.',f"{cyc.get('Long_Term_Opportunity_Score',0)}/100"); cc[3].metric('Entry Timing',f"{cyc.get('Entry_Timing_Score',0)}/100"); cc[4].metric('Leverage Risk',cyc.get('Leverage_Risk','N/D'))
         st.success(cyc.get('Crypto_Verdict','')) if cyc.get('Long_Term_Opportunity_Score',0)>=75 else st.info(cyc.get('Crypto_Verdict',''))
         st.caption(cyc.get('Scenario_Note',''))
-        st.dataframe(pd.DataFrame([[k,v] for k,v in cyc.items() if k not in {'Crypto_Verdict','Scenario_Note'}],columns=['Cycle / execution dimension','Reading']),width='stretch',hide_index=True)
+        st.dataframe(key_value_frame([(k,v) for k,v in cyc.items() if k not in {'Crypto_Verdict','Scenario_Note'}],'Cycle / execution dimension','Reading'),width='stretch',hide_index=True)
         a,b,c=st.columns(3)
         a.metric('Model',pro.get('Crypto_Model','N/D')); b.metric('Derivatives Context',f'{score}/100'); c.metric('Specialist Coverage',f"{pro.get('Professional_Data_Coverage_%',0)}%")
         st.info(pro.get('Framework',''))
         score_rows=[[k,v] for k,v in pro.items() if str(k).endswith('_Score')]
         if score_rows: st.dataframe(pd.DataFrame(score_rows,columns=['Model component','Score']),width='stretch',hide_index=True)
-        st.dataframe(pd.DataFrame([[k,v] for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')],columns=['Professional crypto metric','Value']),width='stretch',hide_index=True)
+        st.dataframe(key_value_frame([(k,v) for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')],'Professional crypto metric','Value'),width='stretch',hide_index=True)
         if pro.get('Missing_Professional_Data'): st.warning('Professional fields still unavailable from reliable free feeds: '+', '.join(pro['Missing_Professional_Data']))
 
     if final_type=='Commodity':
         deep=commodity_deep_context(ticker)
         st.subheader('⛏️ Commodity Deep Data')
         st.metric('Deep Data Score',f"{deep['Deep_Data_Score']}/100")
-        st.dataframe(pd.DataFrame([[k,v] for k,v in deep.items() if k!='Notes'],columns=['Metric','Value']),width='stretch',hide_index=True)
+        st.dataframe(key_value_frame([(k,v) for k,v in deep.items() if k!='Notes']),width='stretch',hide_index=True)
         if deep['Notes']: st.info(' '.join(deep['Notes']))
 
 # Data quality / coverage
@@ -489,6 +491,9 @@ else:
 
 # News / catalysts
 st.subheader('📰 Recent Catalysts / News')
-news=get_news(ticker,12)
-if news.empty: st.caption('No news returned by provider.')
-else: st.dataframe(news,width='stretch',hide_index=True)
+if analysis_level=='Técnico':
+    st.caption('Noticias omitidas en modo Técnico para evitar llamadas externas innecesarias. Elegí Fundamental o Completo para consultarlas.')
+else:
+    news=get_news(ticker,12)
+    if news.empty: st.caption('No news returned by provider.')
+    else: st.dataframe(news,width='stretch',hide_index=True)

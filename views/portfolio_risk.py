@@ -6,7 +6,7 @@ from core.storage import load_positions,upsert_position,delete_position
 from core.market_data import download_prices
 from core.portfolio_risk import portfolio_risk,high_correlation_pairs
 from core.themes import theme_exposure
-from core.ui import hero, section_note
+from core.ui import hero, section_note, safe_error
 
 hero('Portfolio Risk','Peso, contribución al riesgo, concentración temática, correlaciones, beta, VaR y drawdown.','Risk Workstation V8')
 user=current_user(); uid=user['user_id']
@@ -34,7 +34,12 @@ with st.sidebar:
                 if projected>100.000001: raise ValueError(f'Los porcentajes sumarían {projected:.1f}%; el máximo es 100%')
             upsert_position(t,q,c,sec,note,user_id=uid,allocation_pct=allocation)
             st.rerun()
-        except Exception as exc: st.error(f'No se pudo guardar: {exc}')
+        except ValueError as exc:
+            safe_error('No se pudo guardar: la asignación debe ser válida y el total no puede superar 100%.',exc,
+                       event='portfolio_allocation_validation_error',user_id=uid,ticker=t)
+        except Exception as exc:
+            safe_error('No se pudo guardar la posición. Intentá nuevamente.',exc,
+                       event='portfolio_position_save_error',user_id=uid,ticker=t)
 
 if pos.empty:
     st.info('Agregá posiciones desde la barra lateral.'); st.stop()

@@ -45,7 +45,7 @@ if cloud_available():
     if ok:
         st.success('Cloud DB schema OK')
     else:
-        st.error(f'Cloud DB problem: {msg}')
+        st.error('Cloud DB no está disponible. Revisá DATABASE_URL y los logs del servidor.')
     if st.button('Sync local fallback state → Cloud DB'):
         st.dataframe(sync_local_state_to_cloud(),width='stretch',hide_index=True)
 else:
@@ -54,7 +54,12 @@ else:
 if st.button('Run provider checks',type='primary'):
     st.session_state['provider_health']=provider_health()
 health=st.session_state.get('provider_health')
-if health is not None: st.dataframe(health,width='stretch',hide_index=True)
+if health is not None:
+    display_health=health.copy()
+    if 'Detail' in display_health:
+        display_health['Detail']=display_health.apply(
+            lambda row: row.get('Detail') if row.get('Status')=='OK' else 'Sin respuesta; detalle guardado en logs',axis=1)
+    st.dataframe(display_health,width='stretch',hide_index=True)
 
 st.subheader('Provider capabilities'); st.dataframe(provider_capabilities(),width='stretch',hide_index=True)
 
@@ -72,7 +77,10 @@ m3.metric('Alert state rows',len(list_alert_states()))
 st.subheader('Recent structured errors')
 errs=recent_errors(100)
 if errs.empty: st.success('No structured runtime errors recorded in this filesystem.')
-else: st.dataframe(errs,width='stretch',hide_index=True)
+else:
+    visible_columns=[column for column in ['ts','event','error_type'] if column in errs]
+    st.dataframe(errs[visible_columns],width='stretch',hide_index=True)
+    st.caption('Los mensajes internos y stack traces permanecen en los logs del servidor; no se imprimen dentro de la aplicación.')
 section_note('En Streamlit Cloud el filesystem puede ser efímero; para observability multi-instance conviene enviar logs a un servicio externo más adelante.')
 
 st.subheader('Secrets / integrations')

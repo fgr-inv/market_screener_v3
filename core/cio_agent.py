@@ -2,14 +2,51 @@
 from __future__ import annotations
 from core.agent_contracts import VerificationStatus
 
-AGENT_VERSION='1.1'; SKILL='daily_cio_brief'; SKILL_VERSION='1.1'
+AGENT_VERSION='1.2'; SKILL='daily_cio_brief'; SKILL_VERSION='1.2'
+
+
+def _selected(mapping,keys):
+    return {key:mapping.get(key) for key in keys if mapping.get(key) not in (None,'')}
+
+
+def _professional_context(d):
+    agent=str(d.get('agent') or ''); meta=d.get('metadata') or {}; context={}
+    if agent=='Technical Signal':
+        context=_selected(meta.get('snapshot') or {},(
+            'TA_Quality_Score','Market_Structure','Weekly_State','Relative_Volume_20d',
+            'Dist_AVWAP_%','Participation','Volume_Profile_Position'))
+    elif agent=='Market Regime & Sector':
+        context=_selected(meta,('macro_score','economic_regime','momentum','vix','leaders','laggards','snapshot_age_hours'))
+    elif agent=='Portfolio & Risk':
+        weights=meta.get('weights') or {}; sectors=meta.get('sector_weights') or {}
+        context={'largest_positions':sorted(weights.items(),key=lambda item:item[1],reverse=True)[:3],
+                 'largest_sectors':sorted(sectors.items(),key=lambda item:item[1],reverse=True)[:3],
+                 'cash_pct':meta.get('cash_pct'),'allocation_basis':meta.get('allocation_basis')}
+    elif agent=='News & Catalyst':
+        article=((meta.get('articles') or [{}])[0] if meta.get('articles') else {})
+        context=_selected(article,('category','direction','severity','thesis_impact','publisher','published_at','primary_source','url'))
+    elif agent=='Fundamental & Catalyst':
+        context=_selected(meta,('source','valuation_overlay_available','provider_refresh_performed'))
+    return context
 
 def _compact(d):
+    calibration=(d.get('metadata') or {}).get('continuous_improvement') or {}
+    evidence=[]
+    for row in d.get('evidence') or []:
+        if row.get('value') in (None,'') and not row.get('note'): continue
+        evidence.append(_selected(row,('claim','value','status','note','source')))
+        if len(evidence)>=5: break
     return {
         'subject':d.get('subject'),'agent':d.get('agent'),'state':d.get('state'),
         'confidence':d.get('confidence'),'summary':d.get('summary'),
+        'raw_confidence':calibration.get('original_confidence',d.get('confidence')),
+        'confidence_multiplier':calibration.get('confidence_multiplier',1.0),
         'verification_status':d.get('verification_status'),
         'skill_version':d.get('skill_version'),
+        'key_evidence':evidence,
+        'contradicting_evidence':list(d.get('contradicting_evidence') or [])[:3],
+        'alternative_explanation':d.get('alternative_explanation') or '',
+        'professional_context':_professional_context(d),
     }
 
 
@@ -41,8 +78,7 @@ def build_cio_brief(results, max_decisions=5, watchlist=None, events=None):
 
     principal_risk=None
     if portfolio:
-        p=portfolio[0]
-        principal_risk={'state':p.get('state'),'summary':p.get('summary'),'verification_status':p.get('verification_status')}
+        principal_risk=_compact(portfolio[0])
     elif conflicts:
         principal_risk={'state':conflicts[0].get('state'),'summary':conflicts[0].get('summary'),'verification_status':conflicts[0].get('verification_status')}
 

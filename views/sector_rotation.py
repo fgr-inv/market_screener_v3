@@ -20,9 +20,17 @@ for sector,etf in get_sector_etfs().items():
         strength,entry,status=sector_strength_entry(r); mf=sector_macro_score(sector,macro)
         overall=round(.45*strength+.25*entry+.30*mf)
         rows.append({"Sector":sector,"ETF":etf,"Overall":overall,"Strength":strength,"Entry":entry,"Macro":mf,"Status":status,"Trend":r["Trend"],"RS vs SPY 63d %":r["RS_63d_%"],"RSI":r["RSI14"],"Dist EMA62 %":r["Dist_EMA62_%"]})
-    except Exception as e:
-        st.warning(f"{sector}: {e}")
-df=pd.DataFrame(rows).sort_values(["Overall","Strength"],ascending=False)
+    except Exception as exc:
+        # Keep provider/calculation details out of the visible page. One summary
+        # below is clearer than a stream of exception strings by sector.
+        from core.monitoring import log_exception
+        log_exception('sector_rotation_row_error',exc,sector=sector,etf=etf)
+df=pd.DataFrame(rows)
+if not df.empty:
+    df=df.sort_values(["Overall","Strength"],ascending=False)
 st.subheader("Ranking"); section_note("Overall = 45% sector strength + 25% entry quality + 30% macro fit.")
-st.dataframe(df,width='stretch',hide_index=True)
+if df.empty:
+    st.warning('No hay datos sectoriales disponibles en este momento. Probá nuevamente más tarde o ejecutá el snapshot diario.')
+else:
+    st.dataframe(df,width='stretch',hide_index=True)
 st.markdown("- **Strength alto + Entry bajo** → líder, pero extendido.\n- **Strength alto + Entry alto** → sector fuerte y comprable.\n- **Overall** prioriza análisis; no es señal automática.")

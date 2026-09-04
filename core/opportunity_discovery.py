@@ -60,7 +60,7 @@ def _candidate_score(row):
 
 
 def discover_daily_candidates(snapshot, portfolio_tickers=None, max_candidates=18,
-                              max_per_sector=3, minimum_score=60):
+                              max_per_sector=3, minimum_score=60,max_per_universe=10):
     """Return a diversified shortlist from the latest broad equity snapshot.
 
     Hard gates favor omission over a false positive. Portfolio names are marked
@@ -97,30 +97,53 @@ def discover_daily_candidates(snapshot, portfolio_tickers=None, max_candidates=1
         if rs is not None: why.append(f'RS percentile {rs:.0f}')
         rows.append({
             'Ticker':ticker,'Sector':sector,'Discovery Score':score,
+            'Universe Source':_text(raw.get('Universe Source'),'Unknown'),
+            'Liquidity Tier':_text(raw.get('Liquidity Tier'),'N/D'),
+            'Average Dollar Volume 20d':_num(raw.get('Average Dollar Volume 20d')),
             'Entry Score':round(entry,1),'Trend Score':round(trend,1),
             'Risk Score':None if risk is None else round(risk,1),
             'Confidence':None if confidence is None else round(confidence,1),
             'RS Percentile':None if rs is None else round(rs,1),
             'RR':_num(raw.get('RR')),'Action':_text(raw.get('Action'),'N/D'),
             'Snapshot Coverage %':coverage,'Current Holding':ticker in portfolio,
+            'Expanded Universe Candidate':_text(raw.get('Universe Source')) not in {'S&P 500','Nasdaq 100'},
             'Why shortlisted':' · '.join(why),
         })
     rows.sort(key=lambda row:(row['Discovery Score'],not row['Current Holding']),reverse=True)
-    selected=[]; sector_counts={}
+    selected=[]; sector_counts={}; universe_counts={}; deferred=[]
     for row in rows:
-        sector=row['Sector']; used=sector_counts.get(sector,0)
+        sector=row['Sector']; source=row.get('Universe Source','Unknown'); used=sector_counts.get(sector,0)
         if used>=int(max_per_sector):
             rejected['sector_diversification']=rejected.get('sector_diversification',0)+1
             continue
+        if universe_counts.get(source,0)>=int(max_per_universe):
+            deferred.append(row)
+            continue
         selected.append(row); sector_counts[sector]=used+1
+        universe_counts[source]=universe_counts.get(source,0)+1
         if len(selected)>=int(max_candidates): break
+    # If other sources did not produce enough qualified names, refill from the
+    # deferred source without lowering any evidence or liquidity gate.
+    if len(selected)<int(max_candidates):
+        selected_tickers={row['Ticker'] for row in selected}
+        for row in deferred:
+            if row['Ticker'] in selected_tickers: continue
+            sector=row['Sector']
+            if sector_counts.get(sector,0)>=int(max_per_sector): continue
+            selected.append(row); selected_tickers.add(row['Ticker'])
+            sector_counts[sector]=sector_counts.get(sector,0)+1
+            if len(selected)>=int(max_candidates): break
+    if deferred:
+        selected_tickers={row['Ticker'] for row in selected}
+        rejected['universe_diversification']=sum(row['Ticker'] not in selected_tickers for row in deferred)
     for rank,row in enumerate(selected,1): row['Discovery Rank']=rank
     return {
         'status':'SHORTLIST_READY' if selected else 'NO_QUALIFIED_CANDIDATES',
         'universe_rows':int(len(snapshot)),'eligible_rows':len(rows),'candidates':selected,
         'rejection_counts':rejected,
         'policy':{'minimum_score':minimum_score,'max_candidates':max_candidates,
-                  'max_per_sector':max_per_sector,'deep_review_required':True},
+                  'max_per_sector':max_per_sector,'max_per_universe':max_per_universe,
+                  'deep_review_required':True},
     }
 
 
@@ -138,6 +161,12 @@ def qualify_verified_opportunities(watchlist, shortlist=None, minimum_priority=6
         seed=discovery.get(ticker,{})
         row['Discovery Score']=seed.get('Discovery Score')
         row['Sector']=seed.get('Sector','Other')
+        row['Universe Source']=seed.get('Universe Source','Unknown')
+        row['Liquidity Tier']=seed.get('Liquidity Tier','N/D')
+        row['Average Dollar Volume 20d']=seed.get('Average Dollar Volume 20d')
+        row['Entry Score']=seed.get('Entry Score')
+        row['Trend Score']=seed.get('Trend Score')
+        row['RR']=seed.get('RR')
         row['Opportunity Status']='VERIFIED_CANDIDATE'
         row['Approval Boundary']='Research only — user decides whether to act.'
         qualified.append(row)

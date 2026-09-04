@@ -3,7 +3,7 @@ import streamlit as st
 
 from core.trade_journal import add_trade, close_trade, list_trades, journal_stats
 from core.access_control import current_user
-from core.ui import hero, section_note
+from core.ui import hero, section_note, safe_error
 
 hero('Trade Journal','Guardá tesis, setup, catalyst, score, ejecución y resultado.','Process Analytics')
 user=current_user(); uid=user['user_id']
@@ -28,7 +28,9 @@ with st.expander('➕ New trade',expanded=False):
         try:
             tid=add_trade(ticker,side,setup,thesis,catalyst,entry,stop,target,qty,score,conf,notes,user_id=uid)
             st.success(f'Trade #{tid} saved'); st.rerun()
-        except Exception as exc: st.error(str(exc))
+        except Exception as exc:
+            safe_error('No se pudo guardar el trade. Revisá los valores ingresados.',exc,
+                       event='trade_journal_save_error',user_id=uid,ticker=ticker)
 
 open_df=list_trades('OPEN',user_id=uid)
 if not open_df.empty:
@@ -39,7 +41,9 @@ if not open_df.empty:
             try:
                 if close_trade(tid,px,note,user_id=uid): st.success('Trade closed'); st.rerun()
                 else: st.warning('Trade no encontrado o ya estaba cerrado.')
-            except Exception as exc: st.error(str(exc))
+            except Exception as exc:
+                safe_error('No se pudo cerrar el trade. Intentá nuevamente.',exc,
+                           event='trade_journal_close_error',user_id=uid,trade_id=tid)
 
 closed=list_trades('CLOSED',user_id=uid); stats=journal_stats(user_id=uid)
 if stats:

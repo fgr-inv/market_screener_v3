@@ -24,6 +24,7 @@ PROCESS_LABELS={
     'opportunity_hunt':'Búsqueda diaria de oportunidades',
     'shadow_validation':'Validación Shadow 1/5/20',
     'skill_calibration':'Calibración semanal',
+    'continuous_improvement':'Mejora continua semanal',
 }
 
 
@@ -153,6 +154,11 @@ def build_automation_health(user_id,now=None,current_failures=None):
     calibration_due=local_now.weekday()==5 and minutes>=11*60
     checks.append(_check_age('skill_calibration',load_latest_desk_output(uid,'automation_heartbeat_skill_calibration'),
                              calibration_due,7*24*60+180,local_now,'Revisión semanal del sábado.'))
+    improvement_due=local_now.weekday()==5 and minutes>=12*60
+    checks.append(_check_age('continuous_improvement',
+                             load_latest_desk_output(uid,'automation_heartbeat_continuous_improvement'),
+                             improvement_due,7*24*60+180,local_now,
+                             'Champion/challenger semanal; ajustes automáticos limitados a confianza.'))
 
     failures={str(key):str(value) for key,value in (current_failures or {}).items() if value}
     for process,reason in failures.items():

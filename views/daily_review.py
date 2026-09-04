@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.ui import hero, section_note
+from core.ui import hero, section_note, display_value
 from core.storage import load_score_history, load_latest_snapshot, load_json_snapshot
 
 hero('Daily Review','Qué cambió materialmente en scores, sectores y régimen.','End-of-Day Review')
@@ -33,5 +33,12 @@ st.dataframe(merged.sort_values(key)[['ticker',key,'action_now']].head(20),width
 macro=load_json_snapshot('latest_macro')
 if macro:
     st.subheader('Current Macro')
-    st.json({k:macro.get(k) for k in ['Macro_Score','Institutional_Regime','Economic_Regime_Slow','Momentum','Breadth','Credit','Rates','Liquidity'] if k in macro})
+    labels={
+        'Macro_Score':'Macro Score','Institutional_Regime':'Market Regime',
+        'Economic_Regime_Slow':'Economic Regime','Momentum':'Momentum',
+        'Breadth':'Breadth','Credit':'Credit','Rates':'Rates','Liquidity':'Liquidity',
+    }
+    rows=[{'Indicador':labels[key],'Lectura':display_value(macro.get(key))} for key in labels if key in macro]
+    if rows:
+        st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 section_note('For a full morning brief add pre-market/intraday feeds; this review is deliberately based on persisted daily data.')

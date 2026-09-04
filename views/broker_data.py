@@ -1,5 +1,5 @@
 import streamlit as st
-from core.ui import hero
+from core.ui import hero, safe_error
 from core.broker_import import normalize_positions_csv,alpaca_positions
 from core.storage import upsert_position
 from core.access_control import current_user
@@ -19,7 +19,9 @@ if f is not None:
                 if float(r['quantity'])==0 and not replace_zero: continue
                 upsert_position(r['ticker'],r['quantity'],r['avg_cost'],user_id=uid); imported+=1
             st.success(f'{imported} posiciones actualizadas.')
-    except Exception as e: st.error(str(e))
+    except Exception as exc:
+        safe_error('No se pudo leer el CSV. Revisá que incluya ticker, cantidad y costo promedio.',exc,
+                   event='broker_csv_preview_error')
 
 st.subheader('Alpaca read-only')
 if user.get('role')!='OWNER':
@@ -37,5 +39,7 @@ else:
             try:
                 for _,r in preview.iterrows(): upsert_position(r['ticker'],r['quantity'],r['avg_cost'],user_id=uid)
                 st.success(f'{len(preview)} posiciones importadas.'); st.rerun()
-            except Exception as exc: st.error(str(exc))
+            except Exception as exc:
+                safe_error('No se pudieron importar las posiciones de Alpaca. No se modificó ninguna orden.',exc,
+                           event='alpaca_portfolio_import_error')
 st.caption('No hay ejecución automática de trades. Las credenciales de broker se usan únicamente para lectura de posiciones.')

@@ -237,11 +237,33 @@ def end_job(token: str | None, user: dict | None=None) -> None:
     user=user or current_user(); uid=user['user_id']
     with _JOB_LOCK:
         _ACTIVE_JOBS[uid]=[(t,e) for t,e in _ACTIVE_JOBS.get(uid,[]) if t!=token]
+    try:
+        import streamlit as st
+        if st.session_state.get('_active_job_token')==token:
+            del st.session_state['_active_job_token']
+    except Exception:
+        pass
 
 
 def require_job_slot(user: dict | None=None) -> str | None:
-    user=user or current_user(); token=begin_job(user)
-    if token: return token
+    user=user or current_user()
+    # A Streamlit stop/rerun can interrupt a page after it acquired a lease.
+    # Release that session's previous lease before reserving a new one so a
+    # failed provider call never blocks the user for the full lease TTL.
+    try:
+        import streamlit as st
+        previous=st.session_state.pop('_active_job_token',None)
+    except Exception:
+        previous=None
+    if previous:
+        end_job(previous,user)
+    token=begin_job(user)
+    if token:
+        try:
+            st.session_state['_active_job_token']=token
+        except Exception:
+            pass
+        return token
     try:
         import streamlit as st
         st.error(f"⏳ Alcanzaste el máximo de {plan_config(user['plan']).get('max_concurrent_jobs',1)} trabajos simultáneos para tu plan.")

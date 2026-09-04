@@ -16,8 +16,13 @@ from core.audit import append_score_audit
 from core.monitoring import log_event,log_exception,timer
 
 
+MIN_EXPANDED_PRICE=2.0
+MIN_EXPANDED_DOLLAR_VOLUME_20D=5_000_000
+CORE_UNIVERSES={'S&P 500','Nasdaq 100'}
+
+
 def combine_equity_universes(*universes,limit=None):
-    """Combine S&P 500, Nasdaq 100 and liquid fallback rows without duplicates."""
+    """Combine ordered equity universes without duplicates, preserving provenance."""
     frames=[]
     for universe in universes:
         if universe is not None and not universe.empty and 'Ticker' in universe.columns:
@@ -29,13 +34,53 @@ def combine_equity_universes(*universes,limit=None):
     return out.head(int(limit)) if limit is not None else out
 
 
-def build_market_snapshot(scan_limit=220):
+def equity_liquidity_profile(history,universe_source='',minimum_price=MIN_EXPANDED_PRICE,
+                             minimum_dollar_volume=MIN_EXPANDED_DOLLAR_VOLUME_20D):
+    """Return a transparent eligibility profile for the expanded universe."""
+    if history is None or history.empty or 'Close' not in history:
+        return {'eligible':False,'price':None,'average_dollar_volume_20d':None,
+                'liquidity_tier':'NO_DATA','reason':'NO_PRICE_DATA'}
+    close=pd.to_numeric(history['Close'],errors='coerce').dropna()
+    if close.empty:
+        return {'eligible':False,'price':None,'average_dollar_volume_20d':None,
+                'liquidity_tier':'NO_DATA','reason':'NO_PRICE_DATA'}
+    price=float(close.iloc[-1]); adv=None
+    if 'Volume' in history:
+        volume=pd.to_numeric(history['Volume'],errors='coerce')
+        aligned=pd.concat([pd.to_numeric(history['Close'],errors='coerce'),volume],axis=1).dropna().tail(20)
+        if not aligned.empty: adv=float((aligned.iloc[:,0]*aligned.iloc[:,1]).mean())
+    core=str(universe_source) in CORE_UNIVERSES
+    eligible=bool(core or (price>=float(minimum_price) and adv is not None and adv>=float(minimum_dollar_volume)))
+    if core: tier='CORE_INDEX'
+    elif adv is None: tier='NO_VOLUME'
+    elif adv>=50_000_000: tier='HIGH'
+    elif adv>=10_000_000: tier='MEDIUM'
+    elif adv>=float(minimum_dollar_volume): tier='MINIMUM'
+    else: tier='ILLIQUID'
+    reason=('CORE_INDEX' if core else 'CURRENT' if eligible else
+            'LOW_PRICE' if price<float(minimum_price) else 'LOW_DOLLAR_VOLUME' if adv is not None else 'NO_VOLUME')
+    return {'eligible':eligible,'price':round(price,4),
+            'average_dollar_volume_20d':None if adv is None else round(adv,2),
+            'liquidity_tier':tier,'reason':reason}
+
+
+def build_market_snapshot(scan_limit=1700):
     with timer('build_market_snapshot',scan_limit=scan_limit):
-        sp=load_universe('S&P 500'); ndx=load_universe('Nasdaq 100'); fb=load_universe('Fallback líquido')
-        scan=combine_equity_universes(sp,ndx,fb,limit=scan_limit)
-        syms=list(dict.fromkeys(sp['Ticker'].tolist()+ndx['Ticker'].tolist()+fb['Ticker'].tolist()+get_market_symbols()+list(get_sector_etfs().values())+list(get_macro_symbols().values())))
-        pm=download_prices(syms,period='2y'); spy=pm.get('SPY')
-        bscore,bdf=composite_breadth({'S&P 500':sp,'Nasdaq 100':ndx,'Fallback líquido':fb},pm)
+        sp=load_universe('S&P 500'); ndx=load_universe('Nasdaq 100')
+        mid=load_universe('S&P MidCap 400'); small=load_universe('S&P SmallCap 600')
+        fb=load_universe('Fallback líquido')
+        scan=combine_equity_universes(sp,ndx,mid,small,fb,limit=scan_limit)
+        equity_symbols=scan['Ticker'].tolist()
+        context_symbols=list(dict.fromkeys(get_market_symbols()+list(get_sector_etfs().values())+
+                                           list(get_macro_symbols().values())))
+        syms=list(dict.fromkeys(equity_symbols+context_symbols))
+        # A failed large batch may retry a few individual names, but never fan
+        # out into thousands of provider calls in one scheduled run.
+        pm=download_prices(equity_symbols,period='2y',max_single_fallback=24)
+        pm.update(download_prices(context_symbols,period='2y'))
+        spy=pm.get('SPY')
+        bscore,bdf=composite_breadth({'S&P 500':sp,'Nasdaq 100':ndx,'S&P MidCap 400':mid,
+                                      'S&P SmallCap 600':small},pm)
         macro=institutional_macro_snapshot(pm,breadth_level=50 if pd.isna(bscore) else bscore)
 
         rows=[]; failed=[]
@@ -44,11 +89,19 @@ def build_market_snapshot(scan_limit=220):
                 raw=pm.get(t)
                 if raw is None or raw.empty:
                     failed.append((t,'NO_PRICE_DATA')); continue
+                source=str(scan.loc[scan['Ticker']==t,'Universe Source'].iloc[0]
+                           if 'Universe Source' in scan else 'Unknown')
+                liquidity=equity_liquidity_profile(raw,source)
+                if not liquidity['eligible']:
+                    failed.append((t,f"LIQUIDITY_{liquidity['reason']}")); continue
                 h=enrich_indicators(raw)
                 if len(h.dropna(subset=['SMA200']))<20:
                     failed.append((t,'INSUFFICIENT_HISTORY')); continue
                 sec=scan.loc[scan['Ticker']==t,'Sector'].iloc[0]
                 r=analyze_symbol(t,h,spy,sec); r['Sector']=normalize_sector(r['Sector']); r['Asset_Type']='Acciones'
+                r['Universe Source']=source
+                r['Average Dollar Volume 20d']=liquidity['average_dollar_volume_20d']
+                r['Liquidity Tier']=liquidity['liquidity_tier']
                 rows.append(r)
             except Exception as exc:
                 failed.append((t,type(exc).__name__)); log_exception('snapshot_symbol_error',exc,ticker=t)
@@ -83,7 +136,13 @@ def build_market_snapshot(scan_limit=220):
 
         meta={
             'generated_at':datetime.now(timezone.utc).isoformat(),'scan_limit':scan_limit,
-            'equity_universe_rows':len(scan),'universe_policy':'S&P 500 + Nasdaq 100 + liquid fallback, deduplicated',
+            'equity_universe_rows':len(scan),
+            'universe_policy':'S&P 500 + Nasdaq 100 + S&P MidCap 400 + S&P SmallCap 600 + curated liquid supplemental; deduplicated and liquidity-gated',
+            'universe_source_rows':({str(k):int(v) for k,v in scan['Universe Source'].value_counts().items()}
+                                    if 'Universe Source' in scan else {}),
+            'expanded_liquidity_gate':{'minimum_price':MIN_EXPANDED_PRICE,
+                                       'minimum_average_dollar_volume_20d':MIN_EXPANDED_DOLLAR_VOLUME_20D,
+                                       'core_index_exemptions':sorted(CORE_UNIVERSES)},
             'symbols_requested':len(syms),
             'symbols_downloaded':len(pm),'symbols_scored':len(results),'symbol_failures':len(failed),
             'failure_examples':failed[:25],

@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.ui import hero
+from core.ui import hero, display_value
 from core.access_control import current_user, quota_status
 from core.plans import PLANS, plan_config, is_owner
 from core.production_storage import storage_mode, cloud_available
@@ -27,7 +27,7 @@ st.subheader('Usage')
 st.dataframe(pd.DataFrame(rows),width='stretch',hide_index=True)
 st.subheader('Entitlements')
 ent={k:v for k,v in cfg.items() if k!='quotas'}
-st.dataframe(pd.DataFrame([{'Entitlement':k,'Value':v} for k,v in ent.items()]),width='stretch',hide_index=True)
+st.dataframe(pd.DataFrame([{'Entitlement':k,'Value':display_value(v)} for k,v in ent.items()]),width='stretch',hide_index=True)
 
 st.subheader('Plan matrix')
 plan_rows=[]

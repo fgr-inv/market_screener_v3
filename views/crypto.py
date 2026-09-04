@@ -7,7 +7,7 @@ from core.crypto_data import crypto_derivatives_score
 from core.crypto_professional import professional_crypto_snapshot, professional_crypto_cycle
 from core.economic_data import institutional_macro_snapshot
 from core.charts import technical_chart
-from core.ui import hero, section_note
+from core.ui import hero, section_note, key_value_frame
 
 hero('Crypto','Modelos separados para BTC, ETH, L1/L2, DeFi, stablecoins y tokens especulativos: macro + red/on-chain + tokenomics + derivados + técnico.','Digital Assets')
 watch=[('BTC-USD','Bitcoin'),('ETH-USD','Ethereum'),('SOL-USD','Solana'),('AAVE-USD','Aave')]
@@ -27,12 +27,12 @@ pro=professional_crypto_snapshot(choice)
 _h=enrich_indicators(pm[choice]) if choice in pm and pm[choice] is not None else pd.DataFrame()
 cyc=professional_crypto_cycle(choice,_h,pro)
 st.subheader('Cycle, Regime & Execution')
-st.dataframe(pd.DataFrame([[k,v] for k,v in cyc.items()],columns=['Decision dimension','Reading']),width='stretch',hide_index=True)
+st.dataframe(key_value_frame(cyc,'Decision dimension','Reading'),width='stretch',hide_index=True)
 st.info(cyc.get('Crypto_Verdict',''))
 st.caption(cyc.get('Scenario_Note',''))
 st.info(pro.get('Framework',''))
 score_rows=[[k,v] for k,v in pro.items() if str(k).endswith('_Score')]
 if score_rows: st.dataframe(pd.DataFrame(score_rows,columns=['Component','Score']),width='stretch',hide_index=True)
-st.dataframe(pd.DataFrame([[k,v] for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')],columns=['Metric','Value']),width='stretch',hide_index=True)
+st.dataframe(key_value_frame([(k,v) for k,v in pro.items() if k not in {'Missing_Professional_Data','Framework'} and not str(k).endswith('_Score')]),width='stretch',hide_index=True)
 if pro.get('Missing_Professional_Data'): st.warning('Missing specialist fields (not fabricated): '+', '.join(pro['Missing_Professional_Data']))
 if choice in pm and pm[choice] is not None: st.plotly_chart(technical_chart(enrich_indicators(pm[choice]),choice),width='stretch')

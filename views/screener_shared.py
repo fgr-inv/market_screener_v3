@@ -49,7 +49,8 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
         asset_type=st.selectbox('Tipo de activo',['Acciones','ETFs','Índices','Cripto','Commodities','Bonos / Tasas','Forex','Personalizado'])
         custom=''; universe_name=None; preset=None
         if asset_type=='Acciones':
-            universe_name=st.selectbox('Mercado',['S&P 500','Nasdaq 100','Fallback líquido'])
+            universe_name=st.selectbox('Mercado',['US Expanded Liquid','S&P 500','Nasdaq 100',
+                                                   'S&P MidCap 400','S&P SmallCap 600','Fallback líquido'])
         elif asset_type=='Personalizado':
             custom=st.text_area('Símbolos','META,NVDA,MU,GEV,CAVA,LMT,RTX',height=100)
         else:
@@ -140,12 +141,15 @@ def render_screener(forced_mode=None, page_title=None, page_subtitle=None):
                     row_type=effective_asset_type(t,detected_type)
                     r=analyze_asset(t,h,spy,sector,row_type,technical_depth=depth_mode)
                     r['Sector']=normalize_sector(r['Sector']); r['Asset_Type']=row_type
+                    if 'Universe Source' in universe_df:
+                        r['Universe Source']=universe_df.loc[universe_df['Ticker']==t,'Universe Source'].iloc[0]
                     rows.append(r); histories[t]=h
                 except Exception: pass
 
             stage_times['technical']=time.perf_counter()-_t
             results=pd.DataFrame(rows)
             if results.empty:
+                end_job(_job_token,_user)
                 st.error('No hubo resultados.'); st.stop()
             results=add_cross_sectional_metrics(results)
             results=add_multi_horizon_rs(results,histories,pm,get_sector_etfs())

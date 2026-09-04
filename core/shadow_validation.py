@@ -108,6 +108,8 @@ def _decision_candidates(brief):
         candidates.append({
             'ticker':ticker,'source_agent':str(row.get('agent') or 'Unknown'),'signal_state':state,
             'expected_direction':DIRECTION_BY_STATE[state],'confidence':_finite(row.get('confidence')),
+            'raw_confidence':_finite(row.get('raw_confidence',row.get('confidence'))),
+            'confidence_multiplier':_finite(row.get('confidence_multiplier')) or 1.0,
             'verification_status':verification,'summary':str(row.get('summary') or ''),'skill_version':str(row.get('skill_version') or ''),
         })
     for row in (brief.get('top_opportunities') or [])[:3]:
@@ -116,6 +118,7 @@ def _decision_candidates(brief):
             candidates.append({
                 'ticker':ticker,'source_agent':'CIO Watchlist','signal_state':'CIO_PRIORITY','expected_direction':'POSITIVE',
                 'confidence':min(score/100,1),'verification_status':'VERIFIED',
+                'raw_confidence':min(score/100,1),'confidence_multiplier':1.0,
                 'summary':f'{ticker} reached CIO watchlist priority {score:.1f}.','skill_version':'1.1',
             })
     return candidates
