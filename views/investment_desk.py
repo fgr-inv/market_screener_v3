@@ -43,7 +43,12 @@ if hunt and hunt.get('payload'):
     source_counts=discovery.get('universe_source_counts') or hp.get('universe_source_counts') or {}
     if source_counts:
         st.caption('Universe coverage: '+', '.join(f'{name}: {count}' for name,count in source_counts.items()))
-        st.caption('Coverage includes large, mid and small caps. Non-core names must pass the $2 price and $5M average 20-day dollar-volume gates.')
+        cap_counts=discovery.get('cap_segment_counts') or {}
+        if cap_counts: st.caption('Company size: '+', '.join(f'{name}: {count}' for name,count in cap_counts.items()))
+        st.caption('Coverage includes large, mid and small caps. Small caps require price ≥ $3 and average 20-day dollar volume ≥ $10M; mid caps require ≥ $7.5M. Micro caps are excluded.')
+        phases=discovery.get('trend_phase_counts') or {}
+        developing=sum(int(phases.get(name,0) or 0) for name in ('BASE_NEAR_BREAKOUT','EARLY_ACCELERATION','BREAKOUT_CONFIRMED'))
+        st.caption(f'Emerging-trend engine: {developing} liquid names in accumulation, early acceleration or near/confirmed breakout phases. These are research candidates, not forecasts.')
     status=hp.get('status') or discovery.get('status','N/D')
     if verified:
         st.success(f"{len(verified)} candidate(s) passed both specialist and evidence gates. Research ranking only.")
@@ -57,6 +62,24 @@ if hunt and hunt.get('payload'):
             st.dataframe(pd.DataFrame(shortlist),width='stretch',hide_index=True)
     if monitored:
         st.caption('Persistent 15-minute watchlist: '+', '.join(monitored))
+
+market_snapshot=load_latest_snapshot('latest_screener')
+if market_snapshot is not None and not market_snapshot.empty and 'Emerging_Trend_Score' in market_snapshot:
+    radar=market_snapshot.copy()
+    phases={'BASE_NEAR_BREAKOUT','EARLY_ACCELERATION','BREAKOUT_CONFIRMED','ESTABLISHED_LEADER'}
+    radar=radar[radar.get('Trend_Phase',pd.Series(index=radar.index,dtype=str)).astype(str).isin(phases)]
+    radar=radar[pd.to_numeric(radar['Emerging_Trend_Score'],errors='coerce')>=62]
+    sort_columns=[column for column in ['Emerging_Trend_Score','Opportunity_Score'] if column in radar]
+    radar=radar.sort_values(sort_columns,ascending=False,na_position='last').head(25)
+    st.subheader('Emerging Trend Radar')
+    section_note('Daily-bar evidence across liquid large, mid and small caps. Early acceleration and near-breakout phases require confirmation; they are not price forecasts.')
+    if radar.empty:
+        st.info('No liquid equity currently passes the emerging-trend evidence threshold.')
+    else:
+        columns=['Ticker','Cap Segment','Sector','Trend_Phase','Emerging_Trend_Score',
+                 'Breakout_Proximity_%','Momentum_Acceleration','Accumulation_Score',
+                 'RS_Percentile','Entry_Score','Risk_Score','Liquidity Tier','Universe Source']
+        st.dataframe(radar[[column for column in columns if column in radar]],width='stretch',hide_index=True)
 
 news_scan=load_latest_desk_output(uid,'news_catalyst_scan')
 priority_news_scan=load_latest_desk_output(uid,'news_catalyst_priority_scan')

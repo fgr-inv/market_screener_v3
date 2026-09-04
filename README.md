@@ -601,3 +601,18 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Database/provider exception details and stack traces remain in structured server logs and are no longer printed in normal user-facing pages.
 - Interrupted Streamlit analyses release or recover their concurrent-job lease, preventing a failed request from blocking the next run.
 - V11.38.1 changes presentation and resilience only. It remains research-only Shadow Mode with no broker execution path.
+
+## V11.39 — Final Professional Automation
+- Expands the daily universe to as many as 2,200 liquid US equities: S&P 500, Nasdaq-100, S&P MidCap 400, S&P SmallCap 600, the curated supplement and, when the configured FMP plan permits it, additional active US companies between $300 million and $10 billion in market capitalization.
+- Persists the last valid broad constituent universe and reuses it only when live constituent sources are materially incomplete. Every reused symbol must still pass current price/history/liquidity checks.
+- Classifies Mega, Large, Mid, Small and Micro Cap from observed market capitalization or transparent index provenance. Micro caps are excluded from automated promotion.
+- Applies stricter tradability gates outside core large-cap indices: small caps require price of at least $3 and average 20-day dollar volume of at least $10 million; mid caps require at least $7.5 million in average dollar volume.
+- Adds a deterministic Emerging Trend engine using completed daily bars: market structure, 20/63/126-day momentum, momentum acceleration, relative strength versus SPY, accumulation volume, volatility compression and proximity to a 63-day breakout.
+- Separates `ESTABLISHED_LEADER`, `BREAKOUT_CONFIRMED`, `BASE_NEAR_BREAKOUT`, `EARLY_ACCELERATION` and recovery/no-setup states. Early phases receive a separate evidence gate and are never described as guaranteed forecasts.
+- Daily discovery reserves representation for qualified Mid and Small Cap candidates without lowering score, liquidity, risk, diversification or specialist-verification standards.
+- Investment Desk adds an Emerging Trend Radar, and professional Discord opportunity summaries show company-size segment, trend phase and Emerging Trend score.
+- Adds an independent Automation Resilience workflow after premarket, post-close and weekly windows. Missing durable jobs receive one idempotent catch-up attempt; frequent monitors continue through their normal schedules.
+- Recovery covers the daily CIO brief, broad snapshot, opportunity hunt, Shadow validation, weekly calibration and weekly continuous-improvement review. Results and recovery attempts are persisted and visible in System Health.
+- Scheduled equity processes use a deterministic US market calendar covering recurring NYSE full-day holidays, preventing false stale alerts and unnecessary holiday runs.
+- The watchdog still sends incident and recovery notices through the existing personal webhook. Failed recovery stops after the bounded attempt and requires human review; it never loops indefinitely.
+- No new secret is required. FMP broad-universe enrichment is optional and falls back to the existing index sources. V11.39 remains research-only Shadow Mode and contains no broker/order execution path.

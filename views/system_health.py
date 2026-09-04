@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 from core.access_control import current_user
@@ -12,7 +14,8 @@ from core.production_storage import cloud_available,storage_mode,ensure_producti
 from core.point_in_time import point_in_time_status
 from core.monitoring import recent_errors
 from core.ui import hero,section_note
-from core.desk_store import load_desk_output
+from core.desk_store import load_desk_output,load_latest_desk_output
+from core.market_calendar import is_us_equity_session
 
 hero('System Health','Proveedores, persistencia, snapshots, errores y data integrity.','Observability V8')
 user=current_user()
@@ -39,6 +42,19 @@ else:
         columns=['label','status','last_success_at','age_minutes','detail']
         st.dataframe(checks[[column for column in columns if column in checks]],width='stretch',hide_index=True)
     st.caption(f"Last watchdog check: {automation.get('created_at','N/D')}")
+
+recovery=load_latest_desk_output(user['user_id'],'automation_recovery_summary') or {}
+recovery_payload=recovery.get('payload') or {}
+if recovery_payload:
+    label=recovery_payload.get('status','N/D')
+    (st.success if label=='RECOVERED' else st.warning)(f'Last bounded recovery: {label}')
+    attempts=pd.DataFrame(recovery_payload.get('attempts') or [])
+    if not attempts.empty:
+        columns=['process','target_date','status','return_code','completed_at']
+        st.dataframe(attempts[[column for column in columns if column in attempts]],width='stretch',hide_index=True)
+    st.caption(f"Recovery worker: {recovery.get('created_at','N/D')} · one catch-up attempt per process/session.")
+now_et=datetime.now(ZoneInfo('America/New_York'))
+st.caption(f"US equity calendar: {'OPEN SESSION' if is_us_equity_session(now_et) else 'CLOSED / HOLIDAY'} · {now_et.date().isoformat()} ET")
 
 if cloud_available():
     ok,msg=ensure_production_schema()

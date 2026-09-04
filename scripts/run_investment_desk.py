@@ -16,6 +16,7 @@ from core.desk_store import load_latest_desk_output,load_desk_output,save_desk_o
 from core.desk_notifications import notify_material_brief
 from core.agent_audit import append_agent_audit
 from core.opportunity_discovery import load_active_watchlist_tickers
+from core.market_calendar import is_us_equity_session
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -32,8 +33,8 @@ def _run_key(events):
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
     now=datetime.now(ZoneInfo('America/New_York'))
-    if now.weekday()>=5:
-        print('Desk skipped: weekend'); return 0
+    if not is_us_equity_session(now):
+        print('Desk skipped: US equity market closed'); return 0
     minutes=now.hour*60+now.minute
     if not (9*60+30 <= minutes <= 16*60):
         print('Desk skipped: outside US cash session'); return 0

@@ -112,14 +112,16 @@ def _opportunity_text(rows):
         except Exception: pass
         technical=_state(row.get('Technical','N/D')); fundamental=_state(row.get('Fundamental','N/D'))
         sector=_clip(row.get('Sector') or 'Sector N/D',45); source=_clip(row.get('Universe Source') or '',38)
+        cap=_clip(row.get('Cap Segment') or '',24); phase=_clip(row.get('Trend Phase') or '',35).replace('_',' ').title()
         details=[]
-        for key,label in (('Entry Score','Entry'),('Trend Score','Trend'),('Portfolio Fit','Portfolio fit'),('Market Fit','Market fit')):
+        for key,label in (('Entry Score','Entry'),('Trend Score','Trend'),('Emerging Trend Score','Emerging'),
+                          ('Portfolio Fit','Portfolio fit'),('Market Fit','Market fit')):
             try: details.append(f'{label} {float(row.get(key)):.0f}')
             except Exception: pass
         try: details.append(f"R/R {float(row.get('RR')):.2f}")
         except Exception: pass
         first=f'**{ticker}** · prioridad **{score_text}** · Técnico: {technical} · Fundamental: {fundamental}'
-        second=' · '.join(part for part in ([sector,source]+details) if part)
+        second=' · '.join(part for part in ([sector,cap,phase,source]+details) if part)
         lines.append(first+('\n↳ '+second if second else ''))
     return '\n'.join(lines)
 

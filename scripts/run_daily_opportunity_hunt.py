@@ -13,6 +13,7 @@ from core.desk_runner import run_desk_review
 from core.desk_store import load_desk_output,save_desk_output
 from core.opportunity_discovery import discover_daily_candidates,qualify_verified_opportunities
 from core.storage import load_json_snapshot,load_latest_snapshot,load_positions
+from core.market_calendar import is_us_equity_session
 
 
 def snapshot_age_hours(meta,now=None):
@@ -38,6 +39,10 @@ def opportunity_run_key(now,snapshot_meta):
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
     now=datetime.now(ZoneInfo('America/New_York'))
+    manual=os.getenv('GITHUB_EVENT_NAME','').lower()=='workflow_dispatch'
+    recovery=os.getenv('AUTOMATION_RECOVERY','').lower()=='true'
+    if not is_us_equity_session(now) and not (manual or recovery):
+        print('Opportunity hunt skipped: US equity market holiday/weekend'); return 0
     snapshot=load_latest_snapshot('latest_screener'); meta=load_json_snapshot('latest_meta')
     run_key=opportunity_run_key(now,meta)
     previous=load_desk_output(uid,'daily_opportunity_hunt',run_key)

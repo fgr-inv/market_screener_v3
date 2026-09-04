@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 
-from core.market_data import load_universe,download_prices,get_market_symbols,get_sector_etfs,get_macro_symbols
+from core.market_data import (load_universe,load_fmp_cap_universe,download_prices,get_market_symbols,
+                              get_sector_etfs,get_macro_symbols)
 from core.indicators import enrich_indicators
 from core.scoring import analyze_symbol,sector_strength_entry
 from core.breadth import composite_breadth
@@ -11,13 +12,17 @@ from core.macro import sector_macro_score
 from core.opportunity import normalize_sector,add_cross_sectional_metrics,attach_scores
 from core.relative_strength import add_multi_horizon_rs
 from core.confidence import confidence_score
-from core.storage import save_latest_snapshot,save_json_snapshot,save_score_snapshot
+from core.storage import load_latest_snapshot,save_latest_snapshot,save_json_snapshot,save_score_snapshot
 from core.audit import append_score_audit
 from core.monitoring import log_event,log_exception,timer
+from core.emerging_trends import analyze_emerging_trend,cap_segment
 
 
 MIN_EXPANDED_PRICE=2.0
 MIN_EXPANDED_DOLLAR_VOLUME_20D=5_000_000
+SMALL_CAP_MINIMUM_PRICE=3.0
+SMALL_CAP_MINIMUM_DOLLAR_VOLUME_20D=10_000_000
+MID_CAP_MINIMUM_DOLLAR_VOLUME_20D=7_500_000
 CORE_UNIVERSES={'S&P 500','Nasdaq 100'}
 
 
@@ -34,8 +39,8 @@ def combine_equity_universes(*universes,limit=None):
     return out.head(int(limit)) if limit is not None else out
 
 
-def equity_liquidity_profile(history,universe_source='',minimum_price=MIN_EXPANDED_PRICE,
-                             minimum_dollar_volume=MIN_EXPANDED_DOLLAR_VOLUME_20D):
+def equity_liquidity_profile(history,universe_source='',cap_size='Unknown',minimum_price=None,
+                             minimum_dollar_volume=None):
     """Return a transparent eligibility profile for the expanded universe."""
     if history is None or history.empty or 'Close' not in history:
         return {'eligible':False,'price':None,'average_dollar_volume_20d':None,
@@ -49,27 +54,44 @@ def equity_liquidity_profile(history,universe_source='',minimum_price=MIN_EXPAND
         volume=pd.to_numeric(history['Volume'],errors='coerce')
         aligned=pd.concat([pd.to_numeric(history['Close'],errors='coerce'),volume],axis=1).dropna().tail(20)
         if not aligned.empty: adv=float((aligned.iloc[:,0]*aligned.iloc[:,1]).mean())
+    cap_size=str(cap_size or 'Unknown')
+    minimum_price=(SMALL_CAP_MINIMUM_PRICE if cap_size=='Small Cap' else MIN_EXPANDED_PRICE
+                   if minimum_price is None else float(minimum_price))
+    minimum_dollar_volume=(SMALL_CAP_MINIMUM_DOLLAR_VOLUME_20D if cap_size=='Small Cap' else
+                           MID_CAP_MINIMUM_DOLLAR_VOLUME_20D if cap_size=='Mid Cap' else
+                           MIN_EXPANDED_DOLLAR_VOLUME_20D if minimum_dollar_volume is None else
+                           float(minimum_dollar_volume))
     core=str(universe_source) in CORE_UNIVERSES
+    micro=cap_size=='Micro Cap'
     eligible=bool(core or (price>=float(minimum_price) and adv is not None and adv>=float(minimum_dollar_volume)))
+    if micro: eligible=False
     if core: tier='CORE_INDEX'
     elif adv is None: tier='NO_VOLUME'
     elif adv>=50_000_000: tier='HIGH'
     elif adv>=10_000_000: tier='MEDIUM'
     elif adv>=float(minimum_dollar_volume): tier='MINIMUM'
     else: tier='ILLIQUID'
-    reason=('CORE_INDEX' if core else 'CURRENT' if eligible else
+    reason=('MICRO_CAP_EXCLUDED' if micro else 'CORE_INDEX' if core else 'CURRENT' if eligible else
             'LOW_PRICE' if price<float(minimum_price) else 'LOW_DOLLAR_VOLUME' if adv is not None else 'NO_VOLUME')
     return {'eligible':eligible,'price':round(price,4),
             'average_dollar_volume_20d':None if adv is None else round(adv,2),
             'liquidity_tier':tier,'reason':reason}
 
 
-def build_market_snapshot(scan_limit=1700):
+def build_market_snapshot(scan_limit=2200):
     with timer('build_market_snapshot',scan_limit=scan_limit):
         sp=load_universe('S&P 500'); ndx=load_universe('Nasdaq 100')
         mid=load_universe('S&P MidCap 400'); small=load_universe('S&P SmallCap 600')
+        fmp_caps=load_fmp_cap_universe()
         fb=load_universe('Fallback líquido')
-        scan=combine_equity_universes(sp,ndx,mid,small,fb,limit=scan_limit)
+        scan=combine_equity_universes(sp,ndx,mid,small,fmp_caps,fb,limit=scan_limit)
+        live_universe_rows=len(scan)
+        cached_universe=load_latest_snapshot('latest_equity_universe')
+        universe_cache_used=False
+        if len(scan)<1000 and cached_universe is not None and len(cached_universe)>len(scan):
+            scan=combine_equity_universes(scan,cached_universe,limit=scan_limit)
+            universe_cache_used=True
+        if len(scan): save_latest_snapshot(scan,'latest_equity_universe')
         equity_symbols=scan['Ticker'].tolist()
         context_symbols=list(dict.fromkeys(get_market_symbols()+list(get_sector_etfs().values())+
                                            list(get_macro_symbols().values())))
@@ -91,7 +113,10 @@ def build_market_snapshot(scan_limit=1700):
                     failed.append((t,'NO_PRICE_DATA')); continue
                 source=str(scan.loc[scan['Ticker']==t,'Universe Source'].iloc[0]
                            if 'Universe Source' in scan else 'Unknown')
-                liquidity=equity_liquidity_profile(raw,source)
+                cap_value=(scan.loc[scan['Ticker']==t,'Market Cap'].iloc[0]
+                           if 'Market Cap' in scan else None)
+                cap_size=cap_segment(cap_value,source)
+                liquidity=equity_liquidity_profile(raw,source,cap_size)
                 if not liquidity['eligible']:
                     failed.append((t,f"LIQUIDITY_{liquidity['reason']}")); continue
                 h=enrich_indicators(raw)
@@ -100,8 +125,11 @@ def build_market_snapshot(scan_limit=1700):
                 sec=scan.loc[scan['Ticker']==t,'Sector'].iloc[0]
                 r=analyze_symbol(t,h,spy,sec); r['Sector']=normalize_sector(r['Sector']); r['Asset_Type']='Acciones'
                 r['Universe Source']=source
+                r['Market Cap']=cap_value
+                r['Cap Segment']=cap_size
                 r['Average Dollar Volume 20d']=liquidity['average_dollar_volume_20d']
                 r['Liquidity Tier']=liquidity['liquidity_tier']
+                r.update(analyze_emerging_trend(h,spy))
                 rows.append(r)
             except Exception as exc:
                 failed.append((t,type(exc).__name__)); log_exception('snapshot_symbol_error',exc,ticker=t)
@@ -137,12 +165,20 @@ def build_market_snapshot(scan_limit=1700):
         meta={
             'generated_at':datetime.now(timezone.utc).isoformat(),'scan_limit':scan_limit,
             'equity_universe_rows':len(scan),
-            'universe_policy':'S&P 500 + Nasdaq 100 + S&P MidCap 400 + S&P SmallCap 600 + curated liquid supplemental; deduplicated and liquidity-gated',
+            'live_universe_rows':live_universe_rows,'universe_cache_used':universe_cache_used,
+            'universe_policy':'S&P 500 + Nasdaq 100 + S&P MidCap 400 + S&P SmallCap 600 + FMP US mid/small-cap supplement when available + curated liquid supplemental; deduplicated and segment-specific liquidity gated',
             'universe_source_rows':({str(k):int(v) for k,v in scan['Universe Source'].value_counts().items()}
                                     if 'Universe Source' in scan else {}),
             'expanded_liquidity_gate':{'minimum_price':MIN_EXPANDED_PRICE,
                                        'minimum_average_dollar_volume_20d':MIN_EXPANDED_DOLLAR_VOLUME_20D,
+                                       'small_cap_minimum_price':SMALL_CAP_MINIMUM_PRICE,
+                                       'small_cap_minimum_average_dollar_volume_20d':SMALL_CAP_MINIMUM_DOLLAR_VOLUME_20D,
+                                       'mid_cap_minimum_average_dollar_volume_20d':MID_CAP_MINIMUM_DOLLAR_VOLUME_20D,
                                        'core_index_exemptions':sorted(CORE_UNIVERSES)},
+            'cap_segment_rows':({str(k):int(v) for k,v in results['Cap Segment'].value_counts().items()}
+                                if len(results) and 'Cap Segment' in results else {}),
+            'trend_phase_rows':({str(k):int(v) for k,v in results['Trend_Phase'].value_counts().items()}
+                                if len(results) and 'Trend_Phase' in results else {}),
             'symbols_requested':len(syms),
             'symbols_downloaded':len(pm),'symbols_scored':len(results),'symbol_failures':len(failed),
             'failure_examples':failed[:25],

@@ -10,9 +10,12 @@ import pandas as pd
 import requests
 import streamlit as st
 import yfinance as yf
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from core.config import SECTOR_ETFS, MACRO_SYMBOLS, CROSS_ASSET, ASSET_PRESETS
 from core.monitoring import log_event, log_exception
 from core.cache_policy import LIVE_PRICE_TTL, HISTORICAL_PRICE_TTL, PRICE_DISK_MAX_AGE_MINUTES
+from core.emerging_trends import cap_segment
 
 ROOT = Path(__file__).resolve().parents[1]
 PRICE_CACHE = ROOT/'data'/'cache'/'prices'
@@ -29,7 +32,27 @@ def get_market_symbols(): return ["SPY","QQQ","IWM","RSP","^VIX"]
 def _fallback_universe():
     out=pd.read_csv(ROOT/"data"/"fallback_universe.csv")
     out['Universe Source']='Curated Liquid Supplemental'
+    out['Market Cap']=pd.NA
+    out['Cap Segment']='Unknown'
     return out
+
+
+def _secret(name,default=''):
+    try:
+        value=st.secrets.get(name,default)
+        if value is not None and str(value).strip(): return str(value).strip()
+    except Exception:
+        pass
+    return str(os.getenv(name,default) or '').strip()
+
+
+def _retry_session():
+    session=requests.Session()
+    retry=Retry(total=2,connect=2,read=2,backoff_factor=.7,
+                status_forcelist=(429,500,502,503,504),allowed_methods=frozenset(['GET']))
+    session.mount('https://',HTTPAdapter(max_retries=retry))
+    session.headers.update({'User-Agent':'market-screener/11.39'})
+    return session
 
 def _fetch_wikipedia(url,symbol_col,sector_col=None,universe_source='Public index constituents'):
     headers={"User-Agent":"Mozilla/5.0 AppleWebKit/537.36 Chrome/124 Safari/537.36"}
@@ -52,7 +75,51 @@ def _combine_universe_frames(*frames):
     out=out[out['Ticker']!=''].drop_duplicates('Ticker',keep='first')
     if 'Sector' not in out: out['Sector']='Unknown'
     if 'Universe Source' not in out: out['Universe Source']='Unknown'
-    return out[['Ticker','Sector','Universe Source']]
+    if 'Market Cap' not in out: out['Market Cap']=pd.NA
+    if 'Cap Segment' not in out: out['Cap Segment']='Unknown'
+    out['Cap Segment']=[cap_segment(cap,source) for cap,source in zip(out['Market Cap'],out['Universe Source'])]
+    columns=['Ticker','Sector','Universe Source','Market Cap','Cap Segment']
+    if 'Exchange' in out: columns.append('Exchange')
+    return out[columns]
+
+
+@st.cache_data(ttl=21600,show_spinner=False)
+def load_fmp_cap_universe(max_per_segment=250):
+    """Best-effort US mid/small-cap supplement from the configured FMP plan.
+
+    S&P 400/600 remain the provider-independent baseline. This source only
+    broadens coverage when the company-screener endpoint is available.
+    """
+    key=_secret('FMP_API_KEY')
+    columns=['Ticker','Sector','Universe Source','Market Cap','Cap Segment','Exchange']
+    if not key: return pd.DataFrame(columns=columns)
+    rows=[]; session=_retry_session()
+    segments=(('FMP US Mid Cap',2_000_000_000,10_000_000_000,'Mid Cap'),
+              ('FMP US Small Cap',300_000_000,2_000_000_000,'Small Cap'))
+    for source,lower,upper,label in segments:
+        try:
+            response=session.get('https://financialmodelingprep.com/stable/company-screener',params={
+                'marketCapMoreThan':lower,'marketCapLowerThan':upper,'priceMoreThan':2,
+                'volumeMoreThan':100000,'country':'US','isEtf':'false','isFund':'false',
+                'isActivelyTrading':'true','limit':int(max_per_segment),'apikey':key,
+            },timeout=25)
+            response.raise_for_status(); payload=response.json()
+            if not isinstance(payload,list): payload=[]
+            for item in payload[:int(max_per_segment)]:
+                ticker=str(item.get('symbol') or '').upper().replace('.','-').strip()
+                market_cap=pd.to_numeric(item.get('marketCap'),errors='coerce')
+                exchange=str(item.get('exchangeShortName') or item.get('exchange') or '').upper()
+                if not ticker or pd.isna(market_cap) or not (lower<=float(market_cap)<upper): continue
+                if exchange and exchange not in {'NASDAQ','NYSE','AMEX','NYSE AMERICAN'}: continue
+                rows.append({'Ticker':ticker,'Sector':str(item.get('sector') or 'Unknown'),
+                             'Universe Source':source,'Market Cap':float(market_cap),
+                             'Cap Segment':label,'Exchange':exchange or 'US'})
+        except Exception as exc:
+            log_exception('fmp_cap_universe_error',exc,segment=label)
+    result=pd.DataFrame(rows,columns=columns).drop_duplicates('Ticker') if rows else pd.DataFrame(columns=columns)
+    log_event('fmp_cap_universe',rows=len(result),mid_caps=sum(result.get('Cap Segment',[])=='Mid Cap'),
+              small_caps=sum(result.get('Cap Segment',[])=='Small Cap'))
+    return result
 
 @st.cache_data(ttl=21600,show_spinner=False)
 def load_universe(name):
@@ -63,32 +130,33 @@ def load_universe(name):
         return _combine_universe_frames(
             load_universe('S&P 500'),load_universe('Nasdaq 100'),
             load_universe('S&P MidCap 400'),load_universe('S&P SmallCap 600'),
+            load_fmp_cap_universe(),
             load_universe('Fallback líquido'))
     try:
         if name=="S&P 500":
-            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies","Symbol","GICS Sector",'S&P 500')
+            return _combine_universe_frames(_fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies","Symbol","GICS Sector",'S&P 500'))
         if name=="S&P MidCap 400":
-            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_400_companies","Symbol","GICS Sector",'S&P MidCap 400')
+            return _combine_universe_frames(_fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_400_companies","Symbol","GICS Sector",'S&P MidCap 400'))
         if name=="S&P SmallCap 600":
-            return _fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_600_companies","Symbol","GICS Sector",'S&P SmallCap 600')
+            return _combine_universe_frames(_fetch_wikipedia("https://en.wikipedia.org/wiki/List_of_S%26P_600_companies","Symbol","GICS Sector",'S&P SmallCap 600'))
         if name=="Nasdaq 100":
             headers={"User-Agent":"Mozilla/5.0 AppleWebKit/537.36 Chrome/124 Safari/537.36"}
             r=requests.get("https://en.wikipedia.org/wiki/Nasdaq-100",headers=headers,timeout=20); r.raise_for_status()
             for t in pd.read_html(StringIO(r.text)):
                 for col in ["Ticker","Symbol"]:
                     if col in t.columns:
-                        return pd.DataFrame({
+                        return _combine_universe_frames(pd.DataFrame({
                             "Ticker":t[col].astype(str).str.replace(".","-",regex=False).str.strip(),
                             "Sector":t["GICS Sector"].astype(str) if "GICS Sector" in t.columns else "Unknown",
                             "Universe Source":'Nasdaq 100',
-                        }).drop_duplicates("Ticker")
+                        }).drop_duplicates("Ticker"))
     except Exception as exc:
         log_exception('universe_fetch_error',exc,universe=name)
     if name=="Nasdaq 100":
-        return fb[fb["Nasdaq100"]==True][["Ticker","Sector","Universe Source"]].copy()
+        return _combine_universe_frames(fb[fb["Nasdaq100"]==True].copy())
     if name in {'S&P MidCap 400','S&P SmallCap 600'}:
         return pd.DataFrame(columns=['Ticker','Sector','Universe Source'])
-    return fb[["Ticker","Sector","Universe Source"]].copy()
+    return _combine_universe_frames(fb.copy())
 
 def build_asset_universe(asset_type,preset=None,custom_text=""):
     if asset_type=="Acciones":

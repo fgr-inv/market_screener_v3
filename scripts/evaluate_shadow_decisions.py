@@ -9,6 +9,7 @@ from core.shadow_validation import (HORIZONS,load_shadow_decisions,load_shadow_o
 from core.desk_store import load_desk_output,save_desk_output
 from core.agent_audit import append_agent_audit
 from core.production_storage import storage_mode
+from core.market_calendar import is_us_equity_session
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     if os.getenv('GITHUB_ACTIONS','').lower()=='true' and storage_mode()!='POSTGRES':
         print('ERROR: DATABASE_URL is required for scheduled shadow validation.'); return 2
     now=datetime.now(ZoneInfo('America/New_York'))
-    if now.weekday()>=5: print('Shadow validation skipped: weekend'); return 0
+    if not is_us_equity_session(now): print('Shadow validation skipped: US equity market closed'); return 0
     run_key=f"shadow-validation-{now.date().isoformat()}"
     if load_desk_output(uid,'shadow_validation',run_key):
         print('Shadow validation skipped: already evaluated for this market date'); return 0

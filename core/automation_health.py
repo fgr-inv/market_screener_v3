@@ -11,6 +11,8 @@ from core.alerts_engine import send_webhook
 from core.desk_store import load_desk_output, load_latest_desk_output, save_desk_output
 from core.notification_settings import get_user_webhook
 from core.storage import load_json_snapshot, load_positions
+from core.market_calendar import (is_us_equity_session,previous_us_equity_session,
+                                  expected_market_date as calendar_expected_market_date)
 
 
 NEW_YORK=ZoneInfo('America/New_York')
@@ -56,16 +58,8 @@ def _age_minutes(record,now):
     return max(0,(now.astimezone(timezone.utc)-observed).total_seconds()/60)
 
 
-def _previous_weekday(day):
-    candidate=day-timedelta(days=1)
-    while candidate.weekday()>=5: candidate-=timedelta(days=1)
-    return candidate
-
-
 def _expected_market_date(now,cutoff_minutes):
-    minutes=now.hour*60+now.minute
-    if now.weekday()<5 and minutes>=cutoff_minutes: return now.date()
-    return _previous_weekday(now.date())
+    return calendar_expected_market_date(now,cutoff_minutes)
 
 
 def _record_local_date(record):
@@ -116,7 +110,8 @@ def record_automation_heartbeat(user_id,process,status='CURRENT',details=None,no
 def build_automation_health(user_id,now=None,current_failures=None):
     """Evaluate only processes that should already have run at the supplied market time."""
     uid=str(user_id or 'local-user'); local_now=_local(now); minutes=local_now.hour*60+local_now.minute
-    weekday=local_now.weekday()<5; cash_window=weekday and 10*60+15<=minutes<=16*60+15
+    market_day=is_us_equity_session(local_now); weekday=local_now.weekday()<5
+    cash_window=market_day and 10*60+15<=minutes<=16*60+15
     news_window=weekday and 8*60+30<=minutes<=19*60+45
     positions=load_positions(user_id=uid)
     has_positions=bool(positions is not None and not positions.empty)
@@ -140,8 +135,8 @@ def build_automation_health(user_id,now=None,current_failures=None):
 
     cio_expected=_expected_market_date(local_now,9*60)
     checks.append(_check_business_date('daily_cio',load_latest_desk_output(uid,'daily_cio_brief'),
-                                       weekday and minutes>=9*60,cio_expected,local_now,'Una vez antes de la apertura.'))
-    postclose_due=weekday and minutes>=20*60+30
+                                       market_day and minutes>=9*60,cio_expected,local_now,'Una vez antes de la apertura.'))
+    postclose_due=market_day and minutes>=20*60+30
     postclose_expected=_expected_market_date(local_now,20*60+30)
     meta=load_json_snapshot('latest_meta') or {}
     snapshot_record={'created_at':meta.get('generated_at'),'payload':{}} if meta.get('generated_at') else None
