@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from core.ui import hero,section_note,display_value
+from core.ui import hero,section_note,display_value,arrow_safe_frame
 from core.access_control import current_user
 from core.market_data import download_prices
 from core.storage import load_positions,load_json_snapshot,load_latest_snapshot
@@ -138,23 +138,23 @@ if auto and auto.get('payload'):
     top=ab.get('top_opportunities') or []
     if top:
         st.write('**Top opportunities**')
-        st.dataframe(pd.DataFrame(top),width='stretch',hide_index=True)
+        st.dataframe(arrow_safe_frame(top),width='stretch',hide_index=True)
     decisions=ab.get('decisions_needed') or []
     if decisions:
         with st.expander('Decisions needed',expanded=False):
-            st.dataframe(pd.DataFrame(decisions),width='stretch',hide_index=True)
+            st.dataframe(arrow_safe_frame(decisions),width='stretch',hide_index=True)
     conflicts=ab.get('avoid_or_conflicting') or []
     if conflicts:
         with st.expander('Avoid / conflicting signals',expanded=False):
-            st.dataframe(pd.DataFrame(conflicts),width='stretch',hide_index=True)
+            st.dataframe(arrow_safe_frame(conflicts),width='stretch',hide_index=True)
     aw=ap.get('watchlist') or []
     if aw:
         with st.expander('Automated desk watchlist',expanded=False):
-            st.dataframe(pd.DataFrame(aw),width='stretch',hide_index=True)
+            st.dataframe(arrow_safe_frame(aw),width='stretch',hide_index=True)
     news_items=ab.get('news_and_catalysts') or []
     if news_items:
         with st.expander('News and catalyst conclusions',expanded=True):
-            st.dataframe(pd.DataFrame(news_items),width='stretch',hide_index=True)
+            st.dataframe(arrow_safe_frame(news_items),width='stretch',hide_index=True)
 
 shadow_decisions=load_shadow_decisions(uid)
 shadow_outcomes=load_shadow_outcomes(uid)

@@ -5,6 +5,8 @@ def test_crypto_model_routing():
     assert crypto_model_type('ETH-USD') == 'Ethereum'
     assert crypto_model_type('SOL-USD') == 'L1/L2'
     assert crypto_model_type('AAVE-USD') == 'DeFi'
+    assert crypto_model_type('UNI-USD') == 'DeFi'
+    assert crypto_model_type('ZEC-USD') == 'General Token'
     assert crypto_model_type('USDC-USD') == 'Stablecoin'
     assert crypto_model_type('PEPE-USD') == 'Speculative Token'
 

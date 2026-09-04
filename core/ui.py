@@ -57,6 +57,22 @@ def key_value_frame(items, key_label='Metric', value_label='Value'):
         for key,value in pairs
     ],columns=[key_label,value_label])
 
+
+def arrow_safe_frame(data):
+    """Return a presentation copy that PyArrow can serialize reliably.
+
+    Desk payloads intentionally retain structured evidence (lists and mappings).
+    Streamlit tables cannot always serialize those containers when a column also
+    contains scalars. Only object/string display columns are normalized here;
+    numeric and datetime columns preserve their native types and calculations.
+    """
+    frame=data.copy() if isinstance(data,pd.DataFrame) else pd.DataFrame(data)
+    for column in frame.columns:
+        series=frame[column]
+        if pd.api.types.is_object_dtype(series.dtype) or pd.api.types.is_string_dtype(series.dtype):
+            frame[column]=series.map(display_value)
+    return frame
+
 def inject_css():
     st.markdown("""
     <style>

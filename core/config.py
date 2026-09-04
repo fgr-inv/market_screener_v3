@@ -1,6 +1,10 @@
 
 APP_NAME = "Market Screener Pro"
-APP_VERSION = "11.39.3"
+APP_VERSION = "11.39.4"
+
+CRYPTO_RESEARCH_WATCHLIST = [
+    "BTC-USD","ETH-USD","SOL-USD","AAVE-USD","ZEC-USD","UNI-USD",
+]
 
 SECTOR_ETFS = {
     "Technology":"XLK","Financials":"XLF","Health Care":"XLV","Industrials":"XLI",
@@ -34,7 +38,7 @@ ASSET_PRESETS = {
     },
     "Cripto":{
         "Grandes":["BTC-USD","ETH-USD","SOL-USD","XRP-USD","BNB-USD"],
-        "Ampliado":["BTC-USD","ETH-USD","SOL-USD","XRP-USD","BNB-USD","ADA-USD","DOGE-USD","AVAX-USD","LINK-USD","DOT-USD"],
+        "Ampliado":["BTC-USD","ETH-USD","SOL-USD","XRP-USD","BNB-USD","ADA-USD","DOGE-USD","AVAX-USD","LINK-USD","DOT-USD","ZEC-USD","UNI-USD"],
     },
     "Commodities":{
         "Futuros principales":["GC=F","SI=F","CL=F","NG=F","HG=F"],

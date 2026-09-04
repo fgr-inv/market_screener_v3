@@ -17,6 +17,7 @@ from core.news_catalyst_agent import catalyst_story_event, classify_catalyst_sto
 from core.news_catalyst_data import collect_catalyst_stories
 from core.opportunity_discovery import load_active_watchlist_tickers
 from core.storage import load_positions, load_theses
+from core.config import CRYPTO_RESEARCH_WATCHLIST
 
 
 def news_scan_mode(value=None):
@@ -35,6 +36,12 @@ def select_news_tickers(holdings,watchlist,scan_mode='full',limit=40):
     primary=list(dict.fromkeys(str(t).upper() for t in (holdings or []) if str(t).strip()))
     secondary=list(dict.fromkeys(str(t).upper() for t in (watchlist or []) if str(t).strip()))
     return (primary if news_scan_mode(scan_mode)=='priority' else list(dict.fromkeys(primary+secondary)))[:int(limit)]
+
+
+def news_watchlist_tickers(saved_watchlist):
+    """Keep the core crypto research list in the hourly full-news monitor."""
+    saved=[str(t).upper() for t in (saved_watchlist or []) if str(t).strip()]
+    return list(dict.fromkeys(saved+CRYPTO_RESEARCH_WATCHLIST))
 
 
 def should_fetch_sec(now,manual=False):
@@ -93,7 +100,7 @@ def main():
 
     positions=load_positions(user_id=uid)
     holdings=[] if positions.empty else positions['ticker'].dropna().astype(str).str.upper().tolist()
-    watchlist=load_active_watchlist_tickers(uid,limit=30)
+    watchlist=news_watchlist_tickers(load_active_watchlist_tickers(uid,limit=30))
     tickers=select_news_tickers(holdings,watchlist,scan_mode,limit=40)
     if not tickers:
         payload={'shadow_mode':True,'status':'SKIPPED_NO_TICKERS','scan_mode':scan_mode,

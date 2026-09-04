@@ -21,7 +21,8 @@ THEME_MAP={
     'UBER':{'Mobility / Consumer':1.00},
     'QSR':{'Restaurants / Consumer':1.00},'CAVA':{'Restaurants / Consumer':1.00},
     'PHM':{'Housing':1.00},
-    'BTC-USD':{'Crypto':1.00},'ETH-USD':{'Crypto':1.00},
+    'BTC-USD':{'Crypto':1.00},'ETH-USD':{'Crypto':1.00},'ZEC-USD':{'Crypto':1.00},
+    'AAVE-USD':{'Crypto':1.00,'DeFi':1.00},'UNI-USD':{'Crypto':1.00,'DeFi':1.00},
     'WMT':{'Consumer Staples':1.00},'PEP':{'Consumer Staples':1.00},'KO':{'Consumer Staples':1.00},
     'ETN':{'Power / Electrification':0.65,'Industrial Automation':0.35},
 }

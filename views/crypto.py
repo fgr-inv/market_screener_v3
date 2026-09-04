@@ -8,9 +8,12 @@ from core.crypto_professional import professional_crypto_snapshot, professional_
 from core.economic_data import institutional_macro_snapshot
 from core.charts import technical_chart
 from core.ui import hero, section_note, key_value_frame
+from core.config import CRYPTO_RESEARCH_WATCHLIST
 
 hero('Crypto','Modelos separados para BTC, ETH, L1/L2, DeFi, stablecoins y tokens especulativos: macro + red/on-chain + tokenomics + derivados + técnico.','Digital Assets')
-watch=[('BTC-USD','Bitcoin'),('ETH-USD','Ethereum'),('SOL-USD','Solana'),('AAVE-USD','Aave')]
+crypto_names={'BTC-USD':'Bitcoin','ETH-USD':'Ethereum','SOL-USD':'Solana','AAVE-USD':'Aave',
+              'ZEC-USD':'Zcash','UNI-USD':'Uniswap'}
+watch=[(ticker,crypto_names[ticker]) for ticker in CRYPTO_RESEARCH_WATCHLIST]
 pm=download_prices(list(dict.fromkeys([x[0] for x in watch]+['SPY']+list(get_macro_symbols().values()))),period='5y'); spy=pm.get('SPY')
 macro=st.session_state.macro_snapshot or institutional_macro_snapshot(pm,breadth_level=50)
 rows=[]

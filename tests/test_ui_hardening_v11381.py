@@ -5,11 +5,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 
 import core.access_control as access_control
 import core.market_data as market_data
 from core.macro import sector_macro_score
-from core.ui import display_value, key_value_frame
+from core.ui import display_value, key_value_frame, arrow_safe_frame
 
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -46,6 +47,18 @@ def test_mixed_key_value_tables_are_arrow_safe_strings():
     assert frame['Value'].map(type).eq(str).all()
     assert frame.set_index('Metric').loc['missing','Value']=='N/D'
     assert display_value({'source':'cache'})=='source: cache'
+
+
+def test_structured_desk_rows_are_arrow_safe_without_losing_numeric_columns():
+    frame=arrow_safe_frame([
+        {'ticker':'ZEC-USD','score':72.5,'reasons':['momentum','volume'],'metadata':{'source':'desk'}},
+        {'ticker':'UNI-USD','score':68.0,'reasons':'watch','metadata':None},
+    ])
+    assert frame['ticker'].map(type).eq(str).all()
+    assert frame['reasons'].map(type).eq(str).all()
+    assert frame['metadata'].map(type).eq(str).all()
+    assert pd.api.types.is_numeric_dtype(frame['score'])
+    assert frame.loc[0,'metadata']=='source: desk'
 
 
 def test_symbol_classification_never_needs_live_metadata(monkeypatch):

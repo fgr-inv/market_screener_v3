@@ -13,6 +13,7 @@ MISSING_SECTORS={'','unknown','none','nan','n/a','not classified'}
 SPECIAL_SECTORS={
     'IBIT':'Digital Assets','FBTC':'Digital Assets','GBTC':'Digital Assets','BITB':'Digital Assets',
     'ARKB':'Digital Assets','BTC-USD':'Digital Assets','ETH-USD':'Digital Assets','SOL-USD':'Digital Assets',
+    'AAVE-USD':'Digital Assets','ZEC-USD':'Digital Assets','UNI-USD':'Digital Assets',
     'SPY':'Diversified Equity','QQQ':'Diversified Equity','IWM':'Diversified Equity','DIA':'Diversified Equity','RSP':'Diversified Equity',
     'TLT':'Fixed Income','IEF':'Fixed Income','SHY':'Fixed Income','HYG':'Fixed Income','LQD':'Fixed Income',
     'GLD':'Commodities','SLV':'Commodities','USO':'Commodities','UNG':'Commodities','DBA':'Commodities',

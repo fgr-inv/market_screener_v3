@@ -11,6 +11,7 @@ from core.access_control import current_user
 from core.ui import hero, section_note
 from core.desk_store import load_desk_output,load_latest_desk_output
 from core.news_catalyst_data import merge_news_scan_records
+from core.config import CRYPTO_RESEARCH_WATCHLIST
 
 hero('Alert Center','Monitor de señales en vivo + estado de tus alertas persistentes.','Signal Monitor')
 user=current_user(); uid=user['user_id']
@@ -68,7 +69,7 @@ elif health_status=='HEALTHY':
 portfolio_ticks=pos['ticker'].astype(str).tolist() if not pos.empty else []
 saved_ticks=saved['ticker'].astype(str).tolist() if not saved.empty else []
 desk_ticks=[str(t).upper() for t in discovery.get('monitor_tickers') or []]
-default=list(dict.fromkeys(portfolio_ticks+saved_ticks+desk_ticks+['BTC-USD','ETH-USD']))[:40]
+default=list(dict.fromkeys(portfolio_ticks+saved_ticks+desk_ticks+CRYPTO_RESEARCH_WATCHLIST))[:40]
 text=st.text_area('Activos a vigilar',','.join(default),height=90)
 threshold=st.slider('Avisar si está a ≤ X% de EMA62/79 (equities)',.5,5.0,2.0,.5)
 ticks=[x.strip().upper() for x in text.replace('\n',',').split(',') if x.strip()]

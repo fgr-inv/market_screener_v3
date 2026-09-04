@@ -123,7 +123,7 @@ def test_v1138_contract_uses_expanded_scan_without_execution():
     workflow=(root/'.github'/'workflows'/'daily_refresh.yml').read_text(encoding='utf-8')
     alerts=(root/'scripts'/'run_alerts.py').read_text(encoding='utf-8')
     screener=(root/'views'/'screener_shared.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "11.39.3"' in config
+    assert 'APP_VERSION = "11.39.4"' in config
     for name in ('S&P MidCap 400','S&P SmallCap 600'):
         assert name in refresh
     assert 'scan_limit=2200' in worker and 'timeout-minutes: 75' in workflow

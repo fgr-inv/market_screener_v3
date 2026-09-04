@@ -22,6 +22,7 @@ CG_IDS = {
     'LINK':'chainlink','UNI':'uniswap','AAVE':'aave','MKR':'maker','LDO':'lido-dao','CRV':'curve-dao-token',
     'USDT':'tether','USDC':'usd-coin','DAI':'dai','PYUSD':'paypal-usd','DOGE':'dogecoin','SHIB':'shiba-inu',
     'PEPE':'pepe','BONK':'bonk','WIF':'dogwifcoin','XRP':'ripple','BNB':'binancecoin','TRX':'tron',
+    'ZEC':'zcash',
 }
 L1_L2 = {'SOL','AVAX','ADA','SUI','APT','NEAR','DOT','ATOM','ARB','OP','BNB','TRX'}
 DEFI = {'UNI','AAVE','MKR','LDO','CRV'}
