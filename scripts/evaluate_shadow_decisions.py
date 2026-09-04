@@ -34,7 +34,11 @@ def main():
              'outcomes_written':len(evaluated),'persistence':persistence}
     append_agent_audit(uid,'shadow_forward_validation',{'run_key':run_key,**payload})
     if persistence.get('status')=='FAILED':
-        print('ERROR: shadow outcomes were not fully persisted; run remains retriable.'); return 1
+        failures=persistence.get('failures') or []
+        detail=str((failures[0] if failures else {}).get('error') or 'unknown database error')
+        print(f'ERROR: shadow outcomes were not fully persisted ({len(failures)} writes); '
+              f'run remains retriable. First database error: {detail[:240]}')
+        return 1
     save_desk_output(uid,'shadow_validation',payload,run_key=run_key)
     print(f"Shadow validation: decisions={summary['decisions']} matured={summary['matured_outcomes']} status={summary['status']}")
     return 0

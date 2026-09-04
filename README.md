@@ -616,3 +616,10 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Scheduled equity processes use a deterministic US market calendar covering recurring NYSE full-day holidays, preventing false stale alerts and unnecessary holiday runs.
 - The watchdog still sends incident and recovery notices through the existing personal webhook. Failed recovery stops after the bounded attempt and requires human review; it never loops indefinitely.
 - No new secret is required. FMP broad-universe enrichment is optional and falls back to the existing index sources. V11.39 remains research-only Shadow Mode and contains no broker/order execution path.
+
+### V11.39.1 — Shadow Persistence Hotfix
+- Migrates existing `user_shadow_decisions` and `user_shadow_outcomes` tables column by column instead of assuming a newly created Supabase schema.
+- Converts NumPy and pandas scalar values to native database parameters before every Shadow-outcome upsert, including explicit handling for missing values and booleans.
+- Stops writes immediately when a schema migration fails and records the first bounded database error in the GitHub Actions log for actionable diagnosis.
+- Failed daily validation remains retriable and outcome writes remain idempotent on `(user_id, decision_key, horizon_days)`, so rerunning the workflow neither loses nor duplicates observations.
+- The Streamlit cache warnings emitted by command-line workers are informational and do not affect persistence. V11.39.1 remains research-only Shadow Mode.

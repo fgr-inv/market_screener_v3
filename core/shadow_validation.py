@@ -10,6 +10,7 @@ from pathlib import Path
 import hashlib
 import json
 import math
+import numpy as np
 import pandas as pd
 from core.production_storage import cloud_available,ensure_production_schema,execute_sql,query_sql
 
@@ -31,6 +32,15 @@ def _finite(value):
     try:
         value=float(value); return value if math.isfinite(value) else None
     except Exception: return None
+def _db_value(value):
+    """Convert pandas/numpy scalars and missing values for psycopg2."""
+    if value is None: return None
+    if isinstance(value,np.generic): value=value.item()
+    try:
+        if pd.isna(value): return None
+    except Exception:
+        pass
+    return value
 def _read(path):
     if not path.exists(): return []
     try:
@@ -231,8 +241,10 @@ def persist_shadow_outcomes(user_id,outcomes):
         clean={**row,'user_id':uid}; key=(str(clean.get('decision_key')),int(clean.get('horizon_days') or 0)); keyed[key]=clean
         if cloud_available():
             ensure_production_schema()
-            params={k:clean.get(k) for k in ('user_id','decision_key','horizon_days','evaluated_at','status','outcome_at','asset_return_pct',
-                                              'benchmark_return_pct','alpha_pct','signed_return_pct','signed_alpha_pct','mfe_pct','mae_pct','success','source')}
+            params={k:_db_value(clean.get(k)) for k in ('user_id','decision_key','horizon_days','evaluated_at','status','outcome_at','asset_return_pct',
+                                                         'benchmark_return_pct','alpha_pct','signed_return_pct','signed_alpha_pct','mfe_pct','mae_pct','success','source')}
+            params['horizon_days']=int(params['horizon_days'] or 0)
+            if params.get('success') is not None: params['success']=bool(params['success'])
             params['payload_json']=json.dumps(clean,ensure_ascii=False,default=str)
             ok,msg=execute_sql('''INSERT INTO user_shadow_outcomes(
                 user_id,decision_key,horizon_days,evaluated_at,status,outcome_at,asset_return_pct,benchmark_return_pct,

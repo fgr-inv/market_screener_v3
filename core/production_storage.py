@@ -237,6 +237,20 @@ def ensure_production_schema():
                 payload_json TEXT NOT NULL,
                 PRIMARY KEY (user_id,decision_key)
             )''',
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS run_key TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS decision_at TIMESTAMP",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS ticker TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS source_agent TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS signal_state TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS expected_direction TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS verification_status TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS baseline_price DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS benchmark_price DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS baseline_status TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS skill_version TEXT",
+            "ALTER TABLE user_shadow_decisions ADD COLUMN IF NOT EXISTS payload_json TEXT",
             '''CREATE INDEX IF NOT EXISTS idx_user_shadow_decisions_time
                ON user_shadow_decisions(user_id,decision_at DESC)''',
             '''CREATE TABLE IF NOT EXISTS user_shadow_outcomes (
@@ -258,6 +272,19 @@ def ensure_production_schema():
                 payload_json TEXT NOT NULL,
                 PRIMARY KEY (user_id,decision_key,horizon_days)
             )''',
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS evaluated_at TIMESTAMP",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS status TEXT",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS outcome_at TIMESTAMP NULL",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS asset_return_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS benchmark_return_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS alpha_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS signed_return_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS signed_alpha_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS mfe_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS mae_pct DOUBLE PRECISION",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS success BOOLEAN",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS source TEXT",
+            "ALTER TABLE user_shadow_outcomes ADD COLUMN IF NOT EXISTS payload_json TEXT",
             '''CREATE INDEX IF NOT EXISTS idx_user_shadow_outcomes_status
                ON user_shadow_outcomes(user_id,status,horizon_days)''',
             '''CREATE TABLE IF NOT EXISTS user_skill_calibration_reviews (
@@ -302,7 +329,9 @@ def execute_sql(sql, params=None):
         return False,'DATABASE_URL not configured'
     try:
         from sqlalchemy import text
-        ensure_production_schema()
+        schema_ok,schema_message=ensure_production_schema()
+        if not schema_ok:
+            return False,f'schema migration failed: {schema_message}'[:240]
         with cloud_connection() as con:
             con.execute(text(sql),params or {})
         return True,'OK'
