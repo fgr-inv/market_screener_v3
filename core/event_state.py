@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 import json
 import pandas as pd
-from core.production_storage import cloud_available,ensure_production_schema,execute_sql,query_sql
+from core.production_storage import cloud_available,ensure_production_schema,execute_many_sql,query_sql
 
 ROOT=Path(__file__).resolve().parents[1]
 STATE_DIR=ROOT/'data'/'agent_event_state'; STATE_DIR.mkdir(parents=True,exist_ok=True)
@@ -62,19 +62,19 @@ def filter_actionable_events(user_id,events,cooldown_minutes=240,now=None):
 
 
 def record_event_state(user_id,events,now=None):
-    uid=str(user_id or 'local-user'); ts=_now(now).isoformat(); local=_load_local(uid); failures=[]
+    uid=str(user_id or 'local-user'); ts=_now(now).isoformat(); local=_load_local(uid); failures=[]; cloud_rows=[]
     for event in events or []:
         key=str(event.get('event_key') or event.get('ticker') or 'UNKNOWN')
         fingerprint=str(event.get('fingerprint') or '')
         local[key]={'fingerprint':fingerprint,'last_triggered_at':ts}
         if cloud_available():
-            ensure_production_schema()
-            ok,msg=execute_sql('''INSERT INTO user_agent_event_state(user_id,event_key,fingerprint,last_triggered_at,updated_at)
-                VALUES (:uid,:key,:fingerprint,:ts,:ts)
-                ON CONFLICT (user_id,event_key) DO UPDATE SET fingerprint=EXCLUDED.fingerprint,
-                    last_triggered_at=EXCLUDED.last_triggered_at,updated_at=EXCLUDED.updated_at''',
-                {'uid':uid,'key':key,'fingerprint':fingerprint,'ts':ts})
-            if not ok: failures.append({'event_key':key,'error':msg})
+            cloud_rows.append({'uid':uid,'key':key,'fingerprint':fingerprint,'ts':ts})
+    if cloud_rows:
+        ok,msg=execute_many_sql('''INSERT INTO user_agent_event_state(user_id,event_key,fingerprint,last_triggered_at,updated_at)
+            VALUES (:uid,:key,:fingerprint,:ts,:ts)
+            ON CONFLICT (user_id,event_key) DO UPDATE SET fingerprint=EXCLUDED.fingerprint,
+                last_triggered_at=EXCLUDED.last_triggered_at,updated_at=EXCLUDED.updated_at''',cloud_rows)
+        if not ok: failures.append({'event_key':'BATCH','writes':len(cloud_rows),'error':msg})
     p=_path(uid); p.parent.mkdir(parents=True,exist_ok=True)
     p.write_text(json.dumps(local,ensure_ascii=False,indent=2),encoding='utf-8')
     return {'status':'FAILED' if failures else 'CURRENT','recorded':len(events or []),'failures':failures}

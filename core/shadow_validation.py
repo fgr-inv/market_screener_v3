@@ -12,7 +12,7 @@ import json
 import math
 import numpy as np
 import pandas as pd
-from core.production_storage import cloud_available,ensure_production_schema,execute_sql,query_sql
+from core.production_storage import cloud_available,ensure_production_schema,execute_many_sql,query_sql
 
 ROOT=Path(__file__).resolve().parents[1]
 DATA_DIR=ROOT/'data'/'shadow_validation'; DATA_DIR.mkdir(parents=True,exist_ok=True)
@@ -139,7 +139,7 @@ def capture_shadow_decisions(user_id,run_key,brief,price_histories=None,observed
     uid=str(user_id or 'local-user'); run_key=str(run_key or '')
     if not run_key: return {'status':'NOT_CHECKED','created':[],'skipped':0,'reason':'run_key required'}
     histories=price_histories or {}; existing=load_shadow_decisions(uid); existing_keys={str(r.get('decision_key')) for r in existing}
-    benchmark,benchmark_at=_last_observation(histories.get('SPY')); created=[]; skipped=0; failures=[]
+    benchmark,benchmark_at=_last_observation(histories.get('SPY')); created=[]; skipped=0; failures=[]; cloud_rows=[]
     for candidate in _decision_candidates(brief or {}):
         ticker=candidate['ticker']; decision_key=_key(uid,run_key,ticker,candidate['source_agent'],candidate['signal_state'])
         if decision_key in existing_keys: skipped+=1; continue
@@ -159,19 +159,20 @@ def capture_shadow_decisions(user_id,run_key,brief,price_histories=None,observed
         }
         created.append(row); existing.append(row); existing_keys.add(decision_key)
         if cloud_available():
-            ensure_production_schema()
-            ok,msg=execute_sql('''INSERT INTO user_shadow_decisions(
-                user_id,decision_key,run_key,created_at,decision_at,ticker,source_agent,signal_state,
-                expected_direction,confidence,verification_status,baseline_price,benchmark_price,
-                baseline_status,skill_version,payload_json)
-                VALUES (:user_id,:decision_key,:run_key,:created_at,:decision_at,:ticker,:source_agent,:signal_state,
-                        :expected_direction,:confidence,:verification_status,:baseline_price,:benchmark_price,
-                        :baseline_status,:skill_version,:payload_json)
-                ON CONFLICT (user_id,decision_key) DO NOTHING''',
-                {**{k:row.get(k) for k in ('user_id','decision_key','run_key','created_at','decision_at','ticker','source_agent','signal_state',
-                                            'expected_direction','confidence','verification_status','baseline_price','benchmark_price','baseline_status','skill_version')},
-                 'payload_json':json.dumps(row,ensure_ascii=False,default=str)})
-            if not ok: failures.append({'decision_key':decision_key,'error':msg})
+            cloud_rows.append({**{k:_db_value(row.get(k)) for k in (
+                'user_id','decision_key','run_key','created_at','decision_at','ticker','source_agent','signal_state',
+                'expected_direction','confidence','verification_status','baseline_price','benchmark_price','baseline_status','skill_version')},
+                'payload_json':json.dumps(row,ensure_ascii=False,default=str)})
+    if cloud_rows:
+        ok,msg=execute_many_sql('''INSERT INTO user_shadow_decisions(
+            user_id,decision_key,run_key,created_at,decision_at,ticker,source_agent,signal_state,
+            expected_direction,confidence,verification_status,baseline_price,benchmark_price,
+            baseline_status,skill_version,payload_json)
+            VALUES (:user_id,:decision_key,:run_key,:created_at,:decision_at,:ticker,:source_agent,:signal_state,
+                    :expected_direction,:confidence,:verification_status,:baseline_price,:benchmark_price,
+                    :baseline_status,:skill_version,:payload_json)
+            ON CONFLICT (user_id,decision_key) DO NOTHING''',cloud_rows)
+        if not ok: failures.append({'decision_key':'BATCH','writes':len(cloud_rows),'error':msg})
     _write(_decisions_path(uid),existing)
     return {'status':'FAILED' if failures else 'CURRENT','created':created,'skipped':skipped,
             'total_candidates':len(created)+skipped,'failures':failures}
@@ -236,31 +237,33 @@ def evaluate_decisions(decisions,price_histories,horizons=HORIZONS,evaluated_at=
 def persist_shadow_outcomes(user_id,outcomes):
     uid=str(user_id or 'local-user'); existing=load_shadow_outcomes(uid)
     keyed={(str(r.get('decision_key')),int(r.get('horizon_days') or 0)):r for r in existing}
-    failures=[]
+    failures=[]; cloud_rows=[]
     for row in outcomes or []:
         clean={**row,'user_id':uid}; key=(str(clean.get('decision_key')),int(clean.get('horizon_days') or 0)); keyed[key]=clean
         if cloud_available():
-            ensure_production_schema()
             params={k:_db_value(clean.get(k)) for k in ('user_id','decision_key','horizon_days','evaluated_at','status','outcome_at','asset_return_pct',
                                                          'benchmark_return_pct','alpha_pct','signed_return_pct','signed_alpha_pct','mfe_pct','mae_pct','success','source')}
             params['horizon_days']=int(params['horizon_days'] or 0)
             if params.get('success') is not None: params['success']=bool(params['success'])
             params['payload_json']=json.dumps(clean,ensure_ascii=False,default=str)
-            ok,msg=execute_sql('''INSERT INTO user_shadow_outcomes(
-                user_id,decision_key,horizon_days,evaluated_at,status,outcome_at,asset_return_pct,benchmark_return_pct,
-                alpha_pct,signed_return_pct,signed_alpha_pct,mfe_pct,mae_pct,success,source,payload_json)
-                VALUES (:user_id,:decision_key,:horizon_days,:evaluated_at,:status,:outcome_at,:asset_return_pct,:benchmark_return_pct,
-                        :alpha_pct,:signed_return_pct,:signed_alpha_pct,:mfe_pct,:mae_pct,:success,:source,:payload_json)
-                ON CONFLICT (user_id,decision_key,horizon_days) DO UPDATE SET evaluated_at=EXCLUDED.evaluated_at,
-                    status=EXCLUDED.status,outcome_at=EXCLUDED.outcome_at,asset_return_pct=EXCLUDED.asset_return_pct,
-                    benchmark_return_pct=EXCLUDED.benchmark_return_pct,alpha_pct=EXCLUDED.alpha_pct,
-                    signed_return_pct=EXCLUDED.signed_return_pct,signed_alpha_pct=EXCLUDED.signed_alpha_pct,
-                    mfe_pct=EXCLUDED.mfe_pct,mae_pct=EXCLUDED.mae_pct,success=EXCLUDED.success,
-                    source=EXCLUDED.source,payload_json=EXCLUDED.payload_json''',params)
-            if not ok: failures.append({'decision_key':key[0],'horizon':key[1],'error':msg})
+            cloud_rows.append(params)
+    if cloud_rows:
+        ok,msg=execute_many_sql('''INSERT INTO user_shadow_outcomes(
+            user_id,decision_key,horizon_days,evaluated_at,status,outcome_at,asset_return_pct,benchmark_return_pct,
+            alpha_pct,signed_return_pct,signed_alpha_pct,mfe_pct,mae_pct,success,source,payload_json)
+            VALUES (:user_id,:decision_key,:horizon_days,:evaluated_at,:status,:outcome_at,:asset_return_pct,:benchmark_return_pct,
+                    :alpha_pct,:signed_return_pct,:signed_alpha_pct,:mfe_pct,:mae_pct,:success,:source,:payload_json)
+            ON CONFLICT (user_id,decision_key,horizon_days) DO UPDATE SET evaluated_at=EXCLUDED.evaluated_at,
+                status=EXCLUDED.status,outcome_at=EXCLUDED.outcome_at,asset_return_pct=EXCLUDED.asset_return_pct,
+                benchmark_return_pct=EXCLUDED.benchmark_return_pct,alpha_pct=EXCLUDED.alpha_pct,
+                signed_return_pct=EXCLUDED.signed_return_pct,signed_alpha_pct=EXCLUDED.signed_alpha_pct,
+                mfe_pct=EXCLUDED.mfe_pct,mae_pct=EXCLUDED.mae_pct,success=EXCLUDED.success,
+                source=EXCLUDED.source,payload_json=EXCLUDED.payload_json''',cloud_rows)
+        if not ok: failures.append({'decision_key':'BATCH','writes':len(cloud_rows),'error':msg})
     rows=list(keyed.values()); rows.sort(key=lambda r:(str(r.get('evaluated_at','')),str(r.get('decision_key','')),int(r.get('horizon_days') or 0)))
     _write(_outcomes_path(uid),rows)
-    return {'status':'FAILED' if failures else 'CURRENT','saved':len(outcomes or []),'failures':failures}
+    return {'status':'FAILED' if failures else 'CURRENT','saved':len(outcomes or []),
+            'failed_writes':len(cloud_rows) if failures else 0,'failures':failures}
 
 
 def shadow_validation_summary(decisions,outcomes,min_reliable_sample=MIN_RELIABLE_SAMPLE):

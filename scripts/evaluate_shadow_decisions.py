@@ -36,7 +36,8 @@ def main():
     if persistence.get('status')=='FAILED':
         failures=persistence.get('failures') or []
         detail=str((failures[0] if failures else {}).get('error') or 'unknown database error')
-        print(f'ERROR: shadow outcomes were not fully persisted ({len(failures)} writes); '
+        failed_writes=int(persistence.get('failed_writes') or len(failures))
+        print(f'ERROR: shadow outcomes were not fully persisted ({failed_writes} writes); '
               f'run remains retriable. First database error: {detail[:240]}')
         return 1
     save_desk_output(uid,'shadow_validation',payload,run_key=run_key)

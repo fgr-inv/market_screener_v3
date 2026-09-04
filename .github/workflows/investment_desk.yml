@@ -3,7 +3,8 @@ name: Investment Desk event scan
 on:
   workflow_dispatch:
   schedule:
-    - cron: '*/15 13-21 * * 1-5'
+    # Offset from Market Alerts to avoid opening both database sessions together.
+    - cron: '8,23,38,53 13-21 * * 1-5'
 
 permissions:
   contents: read

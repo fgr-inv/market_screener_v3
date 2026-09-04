@@ -47,7 +47,7 @@ def test_shadow_capture_reports_cloud_write_failure(tmp_path,monkeypatch):
     monkeypatch.setattr(shadow,'DATA_DIR',tmp_path); monkeypatch.setattr(shadow,'cloud_available',lambda:True)
     monkeypatch.setattr(shadow,'ensure_production_schema',lambda:(True,'OK'))
     monkeypatch.setattr(shadow,'query_sql',lambda *a,**k:pd.DataFrame())
-    monkeypatch.setattr(shadow,'execute_sql',lambda *a,**k:(False,'database unavailable'))
+    monkeypatch.setattr(shadow,'execute_many_sql',lambda *a,**k:(False,'database unavailable'))
     result=capture_shadow_decisions('u','run',_brief(),{'AAA':_history([100]),'SPY':_history([100])})
     assert result['status']=='FAILED'
     assert result['failures'][0]['error']=='database unavailable'
@@ -107,7 +107,7 @@ def test_outcome_persistence_reports_cloud_write_failure(tmp_path,monkeypatch):
     monkeypatch.setattr(shadow,'DATA_DIR',tmp_path); monkeypatch.setattr(shadow,'cloud_available',lambda:True)
     monkeypatch.setattr(shadow,'ensure_production_schema',lambda:(True,'OK'))
     monkeypatch.setattr(shadow,'query_sql',lambda *a,**k:pd.DataFrame())
-    monkeypatch.setattr(shadow,'execute_sql',lambda *a,**k:(False,'write failed'))
+    monkeypatch.setattr(shadow,'execute_many_sql',lambda *a,**k:(False,'write failed'))
     row={'user_id':'u','decision_key':'d','horizon_days':1,'evaluated_at':'2026-01-06','status':'PENDING'}
     result=persist_shadow_outcomes('u',[row])
     assert result['status']=='FAILED' and result['failures'][0]['error']=='write failed'

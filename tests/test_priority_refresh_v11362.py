@@ -132,7 +132,7 @@ def test_v11362_workflow_and_ui_contract():
     view=Path('views/alerts.py').read_text(encoding='utf-8')
     assert "cron: '*/15 13-21 * * 1-5'" in alerts and "cron: '0 * * * 0,6'" in alerts
     assert 'if: always()' in alerts and 'run_automation_watchdog' in alerts
-    assert "cron: '*/15 13-21 * * 1-5'" in intraday
+    assert "cron: '8,23,38,53 13-21 * * 1-5'" in intraday
     assert "cron: '35 11-23 * * 1-5'" in news and 'NEWS_SCAN_MODE' in news
     version=next(line.split('=',1)[1].strip().strip('"') for line in config.splitlines() if line.startswith('APP_VERSION'))
     assert tuple(int(part) for part in version.split('.')) >= (11,36,2)

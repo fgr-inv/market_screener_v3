@@ -1,11 +1,17 @@
 import os
 import hashlib
+import time
+from threading import Lock
 from contextlib import contextmanager
 
 import pandas as pd
 
 
 _SCHEMA_READY_FOR=None
+_ENGINE=None
+_ENGINE_KEY=None
+_ENGINE_LOCK=Lock()
+_SCHEMA_LOCK=Lock()
 
 
 def _database_url():
@@ -28,11 +34,36 @@ def storage_mode():
 
 
 def _engine():
+    global _ENGINE,_ENGINE_KEY,_SCHEMA_READY_FOR
     url=_database_url()
     if not url:
         return None
-    from sqlalchemy import create_engine
-    return create_engine(url,pool_pre_ping=True,pool_recycle=300,future=True)
+    engine_key=hashlib.sha256(url.encode('utf-8')).hexdigest()
+    if _ENGINE is not None and _ENGINE_KEY==engine_key:
+        return _ENGINE
+    with _ENGINE_LOCK:
+        if _ENGINE is not None and _ENGINE_KEY==engine_key:
+            return _ENGINE
+        if _ENGINE is not None:
+            try: _ENGINE.dispose()
+            except Exception: pass
+        from sqlalchemy import create_engine
+        # Supabase Session poolers have a small client allowance. One bounded,
+        # reusable connection per worker prevents a loop of short DB operations
+        # from leaving many idle SQLAlchemy pools alive in the same process.
+        _ENGINE=create_engine(url,pool_pre_ping=True,pool_recycle=180,pool_size=1,
+                              max_overflow=0,pool_timeout=60,future=True)
+        _ENGINE_KEY=engine_key
+        _SCHEMA_READY_FOR=None
+        return _ENGINE
+
+
+def _connection_retryable(exc):
+    message=str(exc).lower()
+    return any(token in message for token in (
+        'maxclientsinsessionmode','remaining connection slots','too many clients',
+        'connection refused','connection timed out','could not connect to server',
+    ))
 
 
 @contextmanager
@@ -41,8 +72,29 @@ def cloud_connection():
     if engine is None:
         yield None
         return
-    with engine.begin() as con:
+    con=None; transaction=None
+    for attempt in range(4):
+        try:
+            con=engine.connect(); transaction=con.begin(); break
+        except Exception as exc:
+            if con is not None:
+                try: con.close()
+                except Exception: pass
+                con=None
+            if attempt>=3 or not _connection_retryable(exc):
+                raise
+            engine.dispose()
+            time.sleep(2**attempt)
+    try:
         yield con
+        transaction.commit()
+    except Exception:
+        if transaction is not None:
+            try: transaction.rollback()
+            except Exception: pass
+        raise
+    finally:
+        if con is not None: con.close()
 
 
 def ensure_production_schema():
@@ -52,9 +104,12 @@ def ensure_production_schema():
     schema_key=hashlib.sha256(_database_url().encode('utf-8')).hexdigest()
     if _SCHEMA_READY_FOR==schema_key:
         return True,'OK'
-    try:
-        from sqlalchemy import text
-        statements=[
+    with _SCHEMA_LOCK:
+        if _SCHEMA_READY_FOR==schema_key:
+            return True,'OK'
+        try:
+            from sqlalchemy import text
+            statements=[
             '''CREATE TABLE IF NOT EXISTS saved_alerts (
                 id BIGINT PRIMARY KEY,
                 user_id TEXT DEFAULT 'local-user',
@@ -314,14 +369,14 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_skill_governance_latest
                ON user_skill_governance(user_id,updated_at DESC)''',
-        ]
-        with cloud_connection() as con:
-            for stmt in statements:
-                con.execute(text(stmt))
-        _SCHEMA_READY_FOR=schema_key
-        return True,'OK'
-    except Exception as e:
-        return False,str(e)[:240]
+            ]
+            with cloud_connection() as con:
+                for stmt in statements:
+                    con.execute(text(stmt))
+            _SCHEMA_READY_FOR=schema_key
+            return True,'OK'
+        except Exception as e:
+            return False,str(e)[:240]
 
 
 def execute_sql(sql, params=None):
@@ -339,14 +394,32 @@ def execute_sql(sql, params=None):
         return False,str(e)[:240]
 
 
+def execute_many_sql(sql, param_rows):
+    """Execute one bounded batch in a single transaction/connection."""
+    rows=list(param_rows or [])
+    if not rows:
+        return True,'OK'
+    if not cloud_available():
+        return False,'DATABASE_URL not configured'
+    try:
+        from sqlalchemy import text
+        schema_ok,schema_message=ensure_production_schema()
+        if not schema_ok:
+            return False,f'schema migration failed: {schema_message}'[:240]
+        with cloud_connection() as con:
+            con.execute(text(sql),rows)
+        return True,'OK'
+    except Exception as e:
+        return False,str(e)[:240]
+
+
 def query_sql(sql, params=None):
     if not cloud_available():
         return pd.DataFrame()
     try:
         from sqlalchemy import text
         ensure_production_schema()
-        engine=_engine()
-        with engine.connect() as con:
+        with cloud_connection() as con:
             return pd.read_sql(text(sql),con,params=params or {})
     except Exception:
         return pd.DataFrame()
@@ -356,8 +429,11 @@ def write_dataframe(df, table, if_exists='append'):
     if not cloud_available():
         return False,'DATABASE_URL not configured'
     try:
-        engine=_engine()
-        df.to_sql(table,engine,if_exists=if_exists,index=False,method='multi')
+        schema_ok,schema_message=ensure_production_schema()
+        if not schema_ok:
+            return False,f'schema migration failed: {schema_message}'[:240]
+        with cloud_connection() as con:
+            df.to_sql(table,con,if_exists=if_exists,index=False,method='multi')
         return True,'OK'
     except Exception as e:
         return False,str(e)[:240]

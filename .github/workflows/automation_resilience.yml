@@ -4,7 +4,8 @@ on:
   workflow_dispatch:
   schedule:
     # Independent checks after the premarket and post-close automation windows.
-    - cron: '15 15 * * 1-5'
+    # Offset from quarter-hour monitors to reduce simultaneous DB sessions.
+    - cron: '12 15 * * 1-5'
     - cron: '15 2 * * 2-6'
     - cron: '0 18 * * 6'
 

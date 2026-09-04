@@ -623,3 +623,12 @@ Per-user safety budgets are also enforced before a new job starts: FREE 20 API u
 - Stops writes immediately when a schema migration fails and records the first bounded database error in the GitHub Actions log for actionable diagnosis.
 - Failed daily validation remains retriable and outcome writes remain idempotent on `(user_id, decision_key, horizon_days)`, so rerunning the workflow neither loses nor duplicates observations.
 - The Streamlit cache warnings emitted by command-line workers are informational and do not affect persistence. V11.39.1 remains research-only Shadow Mode.
+
+### V11.39.2 — Supabase Connection-Pool Hardening
+- Reuses one bounded SQLAlchemy engine and one pooled connection per process instead of creating a new connection pool for every query or write.
+- Sets `pool_size=1` and `max_overflow=0`, serializes schema initialization and retries bounded transient connection-acquisition failures from the Supabase Session pooler.
+- Persists all Shadow outcomes from one validation run with one database transaction; a 220-outcome run no longer creates 220 independent connection cycles.
+- Batches event-state updates as well, keeping Investment Desk deduplication durable after a Discord delivery.
+- Routes reads and DataFrame writes through the same bounded connection lifecycle, protecting Market Alerts, watchdog and recovery workers from connection exhaustion.
+- Offsets the Investment Desk and resilience schedules from the Market Alerts quarter-hour boundary so independent workflows do not request database sessions simultaneously.
+- V11.39.2 preserves existing data, idempotency and Shadow Mode. It adds no secret, broker integration or order path.
