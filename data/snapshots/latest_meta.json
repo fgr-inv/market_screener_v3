@@ -1,12 +1,45 @@
 {
-  "generated_at": "2026-09-03T22:31:26.404007+00:00",
-  "scan_limit": 650,
-  "equity_universe_rows": 511,
-  "universe_policy": "S&P 500 + Nasdaq 100 + liquid fallback, deduplicated",
-  "symbols_requested": 540,
-  "symbols_downloaded": 540,
-  "symbols_scored": 508,
-  "symbol_failures": 3,
+  "generated_at": "2026-09-04T02:48:51.843476+00:00",
+  "scan_limit": 2200,
+  "equity_universe_rows": 1512,
+  "live_universe_rows": 1512,
+  "universe_cache_used": false,
+  "universe_policy": "S&P 500 + Nasdaq 100 + S&P MidCap 400 + S&P SmallCap 600 + FMP US mid/small-cap supplement when available + curated liquid supplemental; deduplicated and segment-specific liquidity gated",
+  "universe_source_rows": {
+    "S&P SmallCap 600": 603,
+    "S&P 500": 503,
+    "S&P MidCap 400": 400,
+    "Curated Liquid Supplemental": 6
+  },
+  "expanded_liquidity_gate": {
+    "minimum_price": 2.0,
+    "minimum_average_dollar_volume_20d": 5000000,
+    "small_cap_minimum_price": 3.0,
+    "small_cap_minimum_average_dollar_volume_20d": 10000000,
+    "mid_cap_minimum_average_dollar_volume_20d": 7500000,
+    "core_index_exemptions": [
+      "Nasdaq 100",
+      "S&P 500"
+    ]
+  },
+  "cap_segment_rows": {
+    "Small Cap": 545,
+    "Large Cap": 500,
+    "Mid Cap": 400,
+    "Unknown": 6
+  },
+  "trend_phase_rows": {
+    "NO_QUALIFIED_SETUP": 942,
+    "ESTABLISHED_LEADER": 286,
+    "BASE_NEAR_BREAKOUT": 93,
+    "BREAKOUT_CONFIRMED": 57,
+    "EARLY_ACCELERATION": 38,
+    "RECOVERY_WATCH": 35
+  },
+  "symbols_requested": 1541,
+  "symbols_downloaded": 1541,
+  "symbols_scored": 1451,
+  "symbol_failures": 61,
   "failure_examples": [
     [
       "FDXF",
@@ -19,6 +52,94 @@
     [
       "Q",
       "INSUFFICIENT_HISTORY"
+    ],
+    [
+      "AAT",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "ADAM",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "ADIG",
+      "INSUFFICIENT_HISTORY"
+    ],
+    [
+      "AGNT",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "AMPH",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "APOG",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "BFS",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "CENT",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "CFFN",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "COTY",
+      "LIQUIDITY_LOW_PRICE"
+    ],
+    [
+      "CPF",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "CSR",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "CTS",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "CWEN-A",
+      "NO_PRICE_DATA"
+    ],
+    [
+      "DEA",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "DFH",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "DFIN",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "EGBN",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "EIG",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "FIZZ",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "HAFC",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "HFWA",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ]
   ]
 }
