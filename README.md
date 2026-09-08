@@ -1,4 +1,4 @@
-# Market Screener Pro V8 — Production-Hardened Research Terminal
+# Market Screener Pro V11.39.6 — Automated Research Terminal
 
 V8 focuses on reliability, persistence, auditability and portfolio risk rather than adding more indicators.
 

@@ -16,7 +16,7 @@ from core.desk_store import load_desk_output, load_latest_desk_output, save_desk
 from core.notification_settings import get_user_webhook
 
 
-LAB_VERSION = '1.0'
+LAB_VERSION = '2.0'
 HORIZONS = (1, 3, 5, 10, 20)
 PRIMARY_HORIZON = 5
 MAX_SIGNALS = 2500
@@ -24,6 +24,12 @@ MAX_OUTCOMES = 12500
 MIN_REVIEW_SAMPLE = 30
 MIN_REVIEW_VALIDATION = 10
 MIN_REVIEW_TICKERS = 5
+EQUITY_COMMISSION_BPS = 2.0
+EQUITY_SLIPPAGE_BPS = 5.0
+CRYPTO_COMMISSION_BPS = 10.0
+CRYPTO_SLIPPAGE_BPS = 10.0
+STOP_ATR = 1.5
+TARGET_R = 2.0
 
 # Finite, interpretable variants.  "champion" is the conservative reference;
 # challengers are evaluated but cannot promote themselves into production.
@@ -108,6 +114,42 @@ def technical_feature_frame(history, benchmark=None):
     return x
 
 
+def classify_signal_regime(frame, benchmark_frame=None):
+    """Freeze asset trend, market trend and volatility known at signal close."""
+    row=frame.iloc[-1]
+    asset=('UPTREND' if row.Close>row.EMA50 and (_finite(row.EMA200) is None or row.EMA50>row.EMA200)
+           else 'DOWNTREND' if row.Close<row.EMA50 and (_finite(row.EMA200) is None or row.EMA50<row.EMA200)
+           else 'RANGE')
+    market='UNKNOWN'; volatility='UNKNOWN'
+    bench=technical_feature_frame(benchmark_frame) if benchmark_frame is not None else pd.DataFrame()
+    if not bench.empty:
+        b=bench.iloc[-1]
+        market=('BULL_TREND' if b.Close>b.EMA50 and (_finite(b.EMA200) is None or b.EMA50>b.EMA200)
+                else 'BEAR_TREND' if b.Close<b.EMA50 and (_finite(b.EMA200) is None or b.EMA50<b.EMA200)
+                else 'RANGE')
+        atr_pct=(bench.ATR14/bench.Close*100).dropna(); current=_finite(atr_pct.iloc[-1]) if len(atr_pct) else None
+        if current is not None and len(atr_pct)>=60:
+            percentile=float((atr_pct.tail(252)<=current).mean())
+            volatility='HIGH' if percentile>=.80 else 'LOW' if percentile<=.20 else 'NORMAL'
+    return asset,market,volatility
+
+
+def group_signal_opportunities(signals):
+    """Attach one independent opportunity id to simultaneous correlated triggers."""
+    groups={}
+    for row in signals or []:
+        key=(str(row.get('ticker')),str(row.get('signal_at')),str(row.get('direction')))
+        groups.setdefault(key,[]).append(row)
+    output=[]
+    for key,rows in groups.items():
+        opportunity_key=hashlib.sha256('|'.join(key).encode()).hexdigest()[:20]
+        setups=sorted({str(row.get('setup_id')) for row in rows})
+        for index,row in enumerate(sorted(rows,key=lambda x:(x.get('role')!='CHAMPION',str(x.get('setup_id')),str(x.get('variant'))))):
+            output.append({**row,'opportunity_key':opportunity_key,'confluence_count':len(setups),
+                           'confluence_setups':setups,'independent_primary':index==0})
+    return output
+
+
 def _trigger(frame, setup):
     if len(frame)<3: return None
     row=frame.iloc[-1]; prev=frame.iloc[-2]
@@ -160,6 +202,7 @@ def detect_signal_experiments(ticker, history, benchmark=None, metadata=None, ob
     frame=technical_feature_frame(history,benchmark)
     if frame.empty: return []
     row=frame.iloc[-1]; date=pd.Timestamp(frame.index[-1]).date().isoformat(); meta=metadata or {}
+    asset_regime,market_regime,volatility_regime=classify_signal_regime(frame,benchmark)
     results=[]
     for setup in SETUPS:
         direction=_trigger(frame,setup)
@@ -174,12 +217,39 @@ def detect_signal_experiments(ticker, history, benchmark=None, metadata=None, ob
             'baseline_atr':round(float(row.ATR14),6),'rvol':_finite(row.RVOL),'adx':_finite(row.ADX),
             'rsi14':_finite(row.RSI14),'distance_ema20_atr':round((row.Close-row.EMA20)/row.ATR14,4),
             'distance_vwap_atr':round((row.Close-row.RVWAP20)/row.ATR14,4),
-            'regime':'UPTREND' if row.Close>row.EMA50 else 'DOWNTREND',
+            'regime':asset_regime,'market_regime':market_regime,'volatility_regime':volatility_regime,
+            'average_dollar_volume_20d':_finite((frame.Close*frame.Volume).tail(20).mean()),
             'sector':str(meta.get('sector') or 'Unknown'),'universe_source':str(meta.get('universe_source') or 'Unknown'),
             'market_cap_bucket':str(meta.get('market_cap_bucket') or meta.get('universe_source') or 'Unknown'),
             'shadow_mode':True,'no_execution':True,
         })
-    return results
+    return group_signal_opportunities(results)
+
+
+def _execution_costs(ticker):
+    crypto=str(ticker).upper().endswith('-USD')
+    return ((CRYPTO_COMMISSION_BPS if crypto else EQUITY_COMMISSION_BPS),
+            (CRYPTO_SLIPPAGE_BPS if crypto else EQUITY_SLIPPAGE_BPS))
+
+
+def _simulate_exit(path,entry,direction,atr,stop_atr=STOP_ATR,target_r=TARGET_R):
+    risk=max(float(atr)*float(stop_atr),entry*.001)
+    stop=entry-direction*risk; target=entry+direction*risk*float(target_r)
+    for date,row in path.iterrows():
+        opening=float(row.Open)
+        if direction>0:
+            if opening<=stop: return opening,'STOP_GAP',date,stop,target
+            if opening>=target: return opening,'TARGET_GAP',date,stop,target
+            stop_hit=float(row.Low)<=stop; target_hit=float(row.High)>=target
+        else:
+            if opening>=stop: return opening,'STOP_GAP',date,stop,target
+            if opening<=target: return opening,'TARGET_GAP',date,stop,target
+            stop_hit=float(row.High)>=stop; target_hit=float(row.Low)<=target
+        # Daily OHLC cannot resolve ordering when both levels trade. Use the
+        # conservative assumption to avoid an optimistic backtest artifact.
+        if stop_hit: return stop,'STOP',date,stop,target
+        if target_hit: return target,'TARGET',date,stop,target
+    return float(path.iloc[-1].Close),'TIME',path.index[-1],stop,target
 
 
 def evaluate_signal_experiments(signals, histories, benchmark=None, existing=None, evaluated_at=None):
@@ -191,31 +261,48 @@ def evaluate_signal_experiments(signals, histories, benchmark=None, existing=Non
         dates=pd.Index(pd.to_datetime(hist.index).date); start=pd.Timestamp(signal.get('signal_at')).date()
         positions=[i for i,value in enumerate(dates) if value>=start]
         if not positions: continue
-        base_pos=positions[0]; base=float(signal.get('baseline_price') or hist.iloc[base_pos].Close)
+        signal_pos=positions[0]; entry_pos=signal_pos+1
+        if entry_pos>=len(hist): continue
         direction=1 if signal.get('direction')=='LONG' else -1; atr=float(signal.get('baseline_atr') or 0)
+        commission_bps,slippage_bps=_execution_costs(signal.get('ticker'))
+        raw_entry=float(hist.iloc[entry_pos].Open)
+        entry=raw_entry*(1+direction*slippage_bps/10000)
         for horizon in HORIZONS:
             key=(str(signal.get('signal_key')),horizon)
-            if key in existing_keys or base_pos+horizon>=len(hist): continue
-            future=hist.iloc[base_pos+horizon]; path=hist.iloc[base_pos+1:base_pos+horizon+1]
-            asset_return=(float(future.Close)/base-1)*100
+            exit_pos=entry_pos+horizon-1
+            if key in existing_keys or exit_pos>=len(hist): continue
+            path=hist.iloc[entry_pos:exit_pos+1]
+            raw_exit,exit_reason,exit_date,stop_price,target_price=_simulate_exit(path,entry,direction,atr)
+            trade_path=path.loc[:exit_date]
+            exit_price=raw_exit*(1-direction*slippage_bps/10000)
+            gross_return=direction*(exit_price/entry-1)*100
+            costs_pct=2*commission_bps/100
+            net_return=gross_return-costs_pct
             bench_return=0.0
             if not bench.empty:
-                b=bench.reindex(hist.index).ffill(); b0=_finite(b.iloc[base_pos].Close); b1=_finite(b.iloc[base_pos+horizon].Close)
+                b=bench.reindex(hist.index).ffill(); b0=_finite(b.iloc[entry_pos].Open); b1=_finite(b.loc[exit_date].Close)
                 if b0 and b1: bench_return=(b1/b0-1)*100
-            signed_return=direction*asset_return; signed_alpha=direction*(asset_return-bench_return)
-            favorable=((float(path.High.max())/base-1)*100 if direction>0 else (1-float(path.Low.min())/base)*100)
-            adverse=((float(path.Low.min())/base-1)*100 if direction>0 else (1-float(path.High.max())/base)*100)
+            signed_alpha=net_return-direction*bench_return
+            favorable=((float(trade_path.High.max())/entry-1)*100 if direction>0 else (1-float(trade_path.Low.min())/entry)*100)
+            adverse=((float(trade_path.Low.min())/entry-1)*100 if direction>0 else (1-float(trade_path.High.max())/entry)*100)
             outcomes.append({
                 'outcome_key':f"{signal['signal_key']}:{horizon}",'signal_key':signal['signal_key'],
                 'ticker':signal['ticker'],'setup_id':signal['setup_id'],'variant':signal['variant'],
                 'role':signal['role'],'direction':signal['direction'],'signal_at':signal['signal_at'],
+                'setup_version':signal.get('setup_version'),'opportunity_key':signal.get('opportunity_key'),
+                'independent_primary':bool(signal.get('independent_primary')),
                 'horizon_days':horizon,'status':'MATURED','evaluated_at':_iso(evaluated_at),
-                'asset_return_pct':round(asset_return,4),'benchmark_return_pct':round(bench_return,4),
-                'signed_return_pct':round(signed_return,4),'signed_alpha_pct':round(signed_alpha,4),
+                'entry_date':str(pd.Timestamp(hist.index[entry_pos]).date()),'entry_price':round(entry,6),
+                'raw_next_open':round(raw_entry,6),'exit_date':str(pd.Timestamp(exit_date).date()),
+                'exit_price':round(exit_price,6),'exit_reason':exit_reason,
+                'stop_price':round(stop_price,6),'target_price':round(target_price,6),
+                'commission_bps':commission_bps,'slippage_bps':slippage_bps,'costs_pct':round(costs_pct,4),
+                'asset_return_pct':round(net_return,4),'gross_return_pct':round(gross_return,4),
+                'benchmark_return_pct':round(bench_return,4),'signed_return_pct':round(net_return,4),'signed_alpha_pct':round(signed_alpha,4),
                 'mfe_pct':round(favorable,4),'mae_pct':round(adverse,4),
-                'mfe_atr':None if not atr else round(favorable/(atr/base*100),4),
-                'mae_atr':None if not atr else round(adverse/(atr/base*100),4),
-                'success':bool(signed_return>0 and signed_alpha>0),'shadow_mode':True,
+                'mfe_atr':None if not atr else round(favorable/(atr/entry*100),4),
+                'mae_atr':None if not atr else round(adverse/(atr/entry*100),4),
+                'success':bool(net_return>0 and signed_alpha>0),'shadow_mode':True,
             })
     return outcomes
 
@@ -242,9 +329,13 @@ def merge_signal_lab_ledger(ledger, new_signals, new_outcomes):
 
 
 def build_daily_signal_lab_report(signals, new_outcomes, universe_size, failures=None, generated_at=None):
-    primary=[row for row in new_outcomes if int(row.get('horizon_days') or 0)==PRIMARY_HORIZON]
+    primary=[row for row in new_outcomes if int(row.get('horizon_days') or 0)==PRIMARY_HORIZON and row.get('independent_primary')]
+    independent={row.get('opportunity_key') or row.get('signal_key') for row in signals}
+    exits={str(row.get('exit_reason')):sum(str(x.get('exit_reason'))==str(row.get('exit_reason')) for x in primary)
+           for row in primary}
     return {'status':'CURRENT','generated_at':_iso(generated_at),'lab_version':LAB_VERSION,
-            'universe_size':int(universe_size),'new_signals':len(signals),'matured_outcomes':len(new_outcomes),
+            'universe_size':int(universe_size),'new_signals':len(signals),'independent_opportunities':len(independent),
+            'matured_outcomes':len(new_outcomes),'exit_reasons_5d':exits,
             'primary_horizon_matured':len(primary),'primary_hit_rate_pct':None if not primary else round(100*sum(bool(x.get('success')) for x in primary)/len(primary),1),
             'signals':list(signals)[:40],'failures':list(failures or [])[:30],
             'policy':'Experiments only. Results do not alter production rules automatically.',
@@ -257,41 +348,50 @@ def _mean(rows,key):
 
 
 def build_weekly_signal_lab_review(signals, outcomes, generated_at=None):
-    signal_map={str(row.get('signal_key')):row for row in signals or []}
+    signal_map={str(row.get('signal_key')):row for row in signals or []
+                if str(row.get('setup_version') or '1.0')==LAB_VERSION}
     groups={}
     for outcome in outcomes or []:
         if int(outcome.get('horizon_days') or 0)!=PRIMARY_HORIZON: continue
         signal=signal_map.get(str(outcome.get('signal_key')))
         if not signal: continue
-        key=(str(signal.get('setup_id')),str(signal.get('variant')))
+        key=(str(signal.get('setup_id')),str(signal.get('variant')),str(signal.get('market_regime') or 'UNKNOWN'))
         groups.setdefault(key,[]).append({**outcome,'ticker':signal.get('ticker'),'role':signal.get('role')})
     rows=[]
-    for (setup,variant), sample in sorted(groups.items()):
+    for (setup,variant,market_regime), sample in sorted(groups.items()):
         sample.sort(key=lambda x:(str(x.get('signal_at')),str(x.get('signal_key'))))
         validation_size=max(MIN_REVIEW_VALIDATION,int(round(len(sample)*.30)))
         validation=sample[max(0,len(sample)-validation_size):]
-        rows.append({'setup_id':setup,'variant':variant,'role':sample[0].get('role'),'sample':len(sample),
+        rows.append({'setup_id':setup,'variant':variant,'setup_version':LAB_VERSION,'market_regime':market_regime,
+                     'role':sample[0].get('role'),'sample':len(sample),
                      'validation_sample':len(validation),'unique_tickers':len({x.get('ticker') for x in sample}),
                      'hit_rate_pct':round(100*sum(bool(x.get('success')) for x in validation)/len(validation),1) if validation else None,
                      'expectancy_alpha_pct':None if not validation else round(_mean(validation,'signed_alpha_pct'),4),
                      'mean_mfe_pct':None if not validation else round(_mean(validation,'mfe_pct'),4),
                      'mean_mae_pct':None if not validation else round(_mean(validation,'mae_pct'),4),
+                     'net_expectancy_pct':None if not validation else round(_mean(validation,'signed_return_pct'),4),
+                     'stop_rate_pct':None if not validation else round(100*sum(str(x.get('exit_reason','')).startswith('STOP') for x in validation)/len(validation),1),
                      'eligible':len(sample)>=MIN_REVIEW_SAMPLE and len(validation)>=MIN_REVIEW_VALIDATION and len({x.get('ticker') for x in sample})>=MIN_REVIEW_TICKERS})
     proposals=[]
     for challenger in [x for x in rows if x['role']=='CHALLENGER' and x['eligible']]:
-        champion=next((x for x in rows if x['setup_id']==challenger['setup_id'] and x['role']=='CHAMPION' and x['eligible']),None)
+        champion=next((x for x in rows if x['setup_id']==challenger['setup_id'] and
+                       x['market_regime']==challenger['market_regime'] and x['role']=='CHAMPION' and x['eligible']),None)
         if not champion: continue
         edge=(challenger['expectancy_alpha_pct'] or 0)-(champion['expectancy_alpha_pct'] or 0)
         hit_guard=(challenger['hit_rate_pct'] or 0)>=(champion['hit_rate_pct'] or 0)-5
         risk_guard=(challenger['mean_mae_pct'] or -999)>=(champion['mean_mae_pct'] or -999)-.5
         if edge>=.15 and hit_guard and risk_guard:
-            proposals.append({'setup_id':challenger['setup_id'],'champion':champion['variant'],'challenger':challenger['variant'],
+            proposals.append({'setup_id':challenger['setup_id'],'market_regime':challenger['market_regime'],
+                              'champion':champion['variant'],'challenger':challenger['variant'],
                               'validation_edge_pct':round(edge,4),'status':'HUMAN_REVIEW_REQUIRED'})
     status='REVIEW_PROPOSED' if proposals else 'CHAMPION_RETAINED' if any(x['eligible'] for x in rows) else 'NOT_ENOUGH_DATA'
     return {'status':status,'generated_at':_iso(generated_at),'lab_version':LAB_VERSION,'primary_horizon_days':PRIMARY_HORIZON,
             'setups_reviewed':len(rows),'eligible_variants':sum(bool(x['eligible']) for x in rows),'proposals':proposals,
             'scorecard':rows,'automatic_rule_changes':0,'structural_changes':'HUMAN_REVIEW_REQUIRED',
-            'method':'Chronological 70/30 split; comparison uses only the most recent 30% as validation.',
+            'execution_policy':{'entry':'NEXT_SESSION_OPEN','commission_bps_equity':EQUITY_COMMISSION_BPS,
+                'slippage_bps_equity':EQUITY_SLIPPAGE_BPS,'stop_atr':STOP_ATR,'target_r':TARGET_R,
+                'same_bar_ambiguity':'STOP_FIRST_CONSERVATIVE'},
+            'method':'Chronological 70/30 split by setup and market regime; newest 30% is validation. Version 1.0 close-entry evidence is excluded.',
             'shadow_mode':True,'no_execution':True}
 
 
@@ -315,7 +415,7 @@ def build_signal_lab_embed(report, weekly=False):
     signals=report.get('signals') or []; lines=[]
     for row in signals[:12]: lines.append(f"**{row.get('ticker')}** · {row.get('direction')} · {row.get('setup_id')} / {row.get('variant')}")
     return {'author':{'name':'Market Screener Pro · Technical Signal Lab'},'title':'📊 Laboratorio diario de señales',
-            'description':f"Universo: **{report.get('universe_size')}** · señales nuevas: **{report.get('new_signals')}** · resultados maduros: **{report.get('matured_outcomes')}**",
+        'description':f"Universo: **{report.get('universe_size')}** · oportunidades independientes: **{report.get('independent_opportunities',0)}** · resultados maduros: **{report.get('matured_outcomes')}**",
             'color':0x3498DB,'fields':[{'name':'Señales virtuales','value':_clip('\n'.join(lines) or 'Sin señales nuevas hoy.'),'inline':False},
                      {'name':'Límite','value':'Experimentos estadísticos; no son recomendaciones ni modifican el ranking de producción.','inline':False}],
             'timestamp':report.get('generated_at'),'footer':{'text':'SHADOW MODE · Ninguna orden fue enviada'}}

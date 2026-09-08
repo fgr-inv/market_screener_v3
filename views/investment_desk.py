@@ -271,13 +271,13 @@ if not signal_daily:
 else:
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Universe tested',signal_daily.get('universe_size',0))
-    c2.metric('New signals',signal_daily.get('new_signals',0))
+    c2.metric('Independent opportunities',signal_daily.get('independent_opportunities',0))
     c3.metric('New matured outcomes',signal_daily.get('matured_outcomes',0))
     c4.metric('5d hit rate','N/D' if signal_daily.get('primary_hit_rate_pct') is None else f"{signal_daily['primary_hit_rate_pct']:.1f}%")
     signal_rows=signal_daily.get('signals') or []
     if signal_rows:
         frame=pd.DataFrame(signal_rows)
-        columns=['signal_at','ticker','setup_id','variant','role','direction','baseline_price','rvol','adx','regime','sector','universe_source']
+        columns=['signal_at','ticker','setup_id','variant','role','direction','baseline_price','rvol','adx','regime','market_regime','volatility_regime','confluence_count','sector','universe_source']
         st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
 if signal_weekly:
     st.write('**Weekly Champion / Challenger review**')
@@ -289,14 +289,14 @@ if signal_weekly:
     scorecard=signal_weekly.get('scorecard') or []
     if scorecard:
         frame=pd.DataFrame(scorecard)
-        columns=['setup_id','variant','role','sample','validation_sample','unique_tickers','hit_rate_pct','expectancy_alpha_pct','mean_mfe_pct','mean_mae_pct','eligible']
+        columns=['setup_id','variant','market_regime','role','sample','validation_sample','unique_tickers','hit_rate_pct','net_expectancy_pct','expectancy_alpha_pct','stop_rate_pct','mean_mfe_pct','mean_mae_pct','eligible']
         st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
     if signal_weekly.get('proposals'):
         st.warning('A challenger improved out of sample. Human code review is required before any production change.')
 with st.expander('Signal Lab methodology and limits',expanded=False):
     ledger=load_signal_lab_ledger(uid)
     st.write(f"Stored virtual signals: **{len(ledger['signals'])}** · stored outcomes: **{len(ledger['outcomes'])}**")
-    st.caption('Outcomes: 1/3/5/10/20 trading days, signed return, alpha versus SPY, MFE and MAE. No future data is used when creating a signal.')
+    st.caption('V2 enters at the next session open and includes commission, slippage, ATR stop, 2R target and conservative stop-first handling when daily OHLC cannot resolve intrabar order.')
 st.caption('The lab cannot rewrite thresholds, promote a variant, place a trade or alter production rankings by itself.')
 
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())

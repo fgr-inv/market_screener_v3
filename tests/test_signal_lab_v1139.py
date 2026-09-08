@@ -4,7 +4,7 @@ import pandas as pd
 
 from core.signal_lab import (HORIZONS, build_weekly_signal_lab_review,
     detect_signal_experiments, evaluate_signal_experiments, merge_signal_lab_ledger,
-    technical_feature_frame)
+    technical_feature_frame, group_signal_opportunities)
 from scripts.run_daily_signal_lab import build_signal_universe
 
 
@@ -55,15 +55,49 @@ def test_forward_evaluation_waits_for_each_trading_horizon_and_is_idempotent():
     assert len(merged['signals'])==1 and len(merged['outcomes'])==len(HORIZONS)
 
 
+def test_v2_enters_next_open_and_charges_costs():
+    initial=_history(250)
+    signal=detect_signal_experiments('TEST',initial,initial)[0]
+    next_day=initial.index[-1]+pd.offsets.BDay(1)
+    future=pd.DataFrame({'Open':[170.0],'High':[171.0],'Low':[169.5],'Close':[170.5],'Volume':[1_000_000]},index=[next_day])
+    history=pd.concat([initial,future])
+    row=evaluate_signal_experiments([signal],{'TEST':history},history)[0]
+    assert row['entry_date']==str(next_day.date())
+    assert row['raw_next_open']==170.0 and row['entry_price']>170.0
+    assert row['costs_pct']>0 and row['setup_version']=='2.0'
+
+
+def test_same_bar_stop_and_target_uses_conservative_stop_first():
+    initial=_history(250); signal=detect_signal_experiments('TEST',initial,initial)[0]
+    atr=signal['baseline_atr']; opening=160.0
+    day=initial.index[-1]+pd.offsets.BDay(1)
+    future=pd.DataFrame({'Open':[opening],'High':[opening+atr*5],'Low':[opening-atr*5],
+                         'Close':[opening],'Volume':[1_000_000]},index=[day])
+    row=evaluate_signal_experiments([signal],{'TEST':pd.concat([initial,future])},pd.concat([initial,future]))[0]
+    assert row['exit_reason'] in {'STOP','STOP_GAP'} and row['signed_return_pct']<0
+
+
+def test_simultaneous_setups_share_one_independent_opportunity():
+    rows=group_signal_opportunities([
+        {'ticker':'ABC','signal_at':'2026-09-01','direction':'LONG','setup_id':'BREAKOUT_RVOL','variant':'base','role':'CHAMPION'},
+        {'ticker':'ABC','signal_at':'2026-09-01','direction':'LONG','setup_id':'DMI_ADX_TREND','variant':'adx20','role':'CHAMPION'},
+    ])
+    assert len({row['opportunity_key'] for row in rows})==1
+    assert sum(row['independent_primary'] for row in rows)==1
+    assert all(row['confluence_count']==2 for row in rows)
+
+
 def test_weekly_review_can_only_propose_human_review():
     signals=[]; outcomes=[]
     for variant,role,alpha in [('base','CHAMPION',.1),('rvol_1_0','CHALLENGER',.8)]:
         for i in range(30):
             key=f'{variant}-{i}'
             signals.append({'signal_key':key,'ticker':f'T{i%6}','setup_id':'BREAKOUT_RVOL',
-                            'variant':variant,'role':role,'signal_at':f'2026-01-{(i%28)+1:02d}'})
+                            'variant':variant,'role':role,'setup_version':'2.0','market_regime':'BULL_TREND',
+                            'signal_at':f'2026-01-{(i%28)+1:02d}'})
             outcomes.append({'signal_key':key,'horizon_days':5,'status':'MATURED','success':True,
-                             'signed_alpha_pct':alpha,'mfe_pct':1.5,'mae_pct':-.4,'signal_at':signals[-1]['signal_at']})
+                             'signed_alpha_pct':alpha,'signed_return_pct':alpha,'exit_reason':'TIME',
+                             'mfe_pct':1.5,'mae_pct':-.4,'signal_at':signals[-1]['signal_at']})
     report=build_weekly_signal_lab_review(signals,outcomes)
     assert report['status']=='REVIEW_PROPOSED'
     assert report['automatic_rule_changes']==0

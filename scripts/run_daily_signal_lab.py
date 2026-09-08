@@ -90,7 +90,8 @@ def main():
     known={row.get('signal_key') for row in ledger['signals']}
     new_signals=[row for row in detected if row.get('signal_key') not in known]
     combined_signals=ledger['signals']+new_signals
-    new_outcomes=evaluate_signal_experiments(combined_signals,histories,benchmark,ledger['outcomes'],now)
+    current_signals=[row for row in combined_signals if str(row.get('setup_version'))=='2.0']
+    new_outcomes=evaluate_signal_experiments(current_signals,histories,benchmark,ledger['outcomes'],now)
     merged=merge_signal_lab_ledger(ledger,new_signals,new_outcomes)
     save_signal_lab_ledger(uid,merged['signals'],merged['outcomes'])
     report=build_daily_signal_lab_report(new_signals,new_outcomes,len(tickers),failures,now)
