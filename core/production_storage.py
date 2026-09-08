@@ -63,6 +63,11 @@ def _connection_retryable(exc):
     return any(token in message for token in (
         'maxclientsinsessionmode','remaining connection slots','too many clients',
         'connection refused','connection timed out','could not connect to server',
+        'server closed the connection','connection reset','connection aborted',
+        'ssl connection has been closed','ssl syscall error','eof detected',
+        'terminating connection','broken pipe','deadlock detected',
+        'could not serialize access','lock not available','database is locked',
+        'timeout expired','statement timeout','operationalerror',
     ))
 
 
@@ -382,16 +387,18 @@ def ensure_production_schema():
 def execute_sql(sql, params=None):
     if not cloud_available():
         return False,'DATABASE_URL not configured'
-    try:
-        from sqlalchemy import text
-        schema_ok,schema_message=ensure_production_schema()
-        if not schema_ok:
-            return False,f'schema migration failed: {schema_message}'[:240]
-        with cloud_connection() as con:
-            con.execute(text(sql),params or {})
-        return True,'OK'
-    except Exception as e:
-        return False,str(e)[:240]
+    from sqlalchemy import text
+    schema_ok,schema_message=ensure_production_schema()
+    if not schema_ok:
+        return False,f'schema migration failed: {schema_message}'[:240]
+    for attempt in range(4):
+        try:
+            with cloud_connection() as con:
+                con.execute(text(sql),params or {})
+            return True,'OK'
+        except Exception as e:
+            if attempt>=3 or not _connection_retryable(e): return False,str(e)[:240]
+            _engine().dispose(); time.sleep(2**attempt)
 
 
 def execute_many_sql(sql, param_rows):
@@ -401,42 +408,50 @@ def execute_many_sql(sql, param_rows):
         return True,'OK'
     if not cloud_available():
         return False,'DATABASE_URL not configured'
-    try:
-        from sqlalchemy import text
-        schema_ok,schema_message=ensure_production_schema()
-        if not schema_ok:
-            return False,f'schema migration failed: {schema_message}'[:240]
-        with cloud_connection() as con:
-            con.execute(text(sql),rows)
-        return True,'OK'
-    except Exception as e:
-        return False,str(e)[:240]
+    from sqlalchemy import text
+    schema_ok,schema_message=ensure_production_schema()
+    if not schema_ok:
+        return False,f'schema migration failed: {schema_message}'[:240]
+    for attempt in range(4):
+        try:
+            with cloud_connection() as con:
+                con.execute(text(sql),rows)
+            return True,'OK'
+        except Exception as e:
+            if attempt>=3 or not _connection_retryable(e): return False,str(e)[:240]
+            _engine().dispose(); time.sleep(2**attempt)
 
 
 def query_sql(sql, params=None):
     if not cloud_available():
         return pd.DataFrame()
-    try:
-        from sqlalchemy import text
-        ensure_production_schema()
-        with cloud_connection() as con:
-            return pd.read_sql(text(sql),con,params=params or {})
-    except Exception:
-        return pd.DataFrame()
+    from sqlalchemy import text
+    schema_ok,_=ensure_production_schema()
+    if not schema_ok: return pd.DataFrame()
+    for attempt in range(4):
+        try:
+            with cloud_connection() as con:
+                return pd.read_sql(text(sql),con,params=params or {})
+        except Exception as exc:
+            if attempt>=3 or not _connection_retryable(exc): return pd.DataFrame()
+            _engine().dispose(); time.sleep(2**attempt)
+    return pd.DataFrame()
 
 
 def write_dataframe(df, table, if_exists='append'):
     if not cloud_available():
         return False,'DATABASE_URL not configured'
-    try:
-        schema_ok,schema_message=ensure_production_schema()
-        if not schema_ok:
-            return False,f'schema migration failed: {schema_message}'[:240]
-        with cloud_connection() as con:
-            df.to_sql(table,con,if_exists=if_exists,index=False,method='multi')
-        return True,'OK'
-    except Exception as e:
-        return False,str(e)[:240]
+    schema_ok,schema_message=ensure_production_schema()
+    if not schema_ok:
+        return False,f'schema migration failed: {schema_message}'[:240]
+    for attempt in range(4):
+        try:
+            with cloud_connection() as con:
+                df.to_sql(table,con,if_exists=if_exists,index=False,method='multi')
+            return True,'OK'
+        except Exception as e:
+            if attempt>=3 or not _connection_retryable(e): return False,str(e)[:240]
+            _engine().dispose(); time.sleep(2**attempt)
 
 
 def read_table(table, limit=1000):

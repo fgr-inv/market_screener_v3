@@ -29,6 +29,7 @@ PROCESS_LABELS={
     'continuous_improvement':'Mejora continua semanal',
     'signal_lab_daily':'Laboratorio técnico diario',
     'signal_lab_weekly':'Revisión técnica semanal',
+    'opportunity_lifecycle':'Pipeline y Shadow Book',
 }
 
 
@@ -163,6 +164,11 @@ def build_automation_health(user_id,now=None,current_failures=None):
                                        load_latest_desk_output(uid,'signal_lab_daily_report'),
                                        signal_due,postclose_expected,local_now,
                                        'Experimentos virtuales 1/3/5/10/20; acciones large/mid/small y activos prioritarios.'))
+    lifecycle_due=market_day and minutes>=21*60
+    checks.append(_check_business_date('opportunity_lifecycle',
+                                       load_latest_desk_output(uid,'opportunity_lifecycle_report'),
+                                       lifecycle_due,postclose_expected,local_now,
+                                       'Evidencia, régimen/MTF, señal, capacidad de riesgo y fills virtuales; después del Signal Lab.'))
     signal_weekly_due=local_now.weekday()==5 and minutes>=12*60
     checks.append(_check_age('signal_lab_weekly',
                              load_latest_desk_output(uid,'automation_heartbeat_signal_lab_weekly'),

@@ -23,9 +23,10 @@ from core.continuous_improvement import (apply_improvement_policy,load_active_im
                                          load_latest_improvement_review)
 from core.signal_lab import (load_latest_signal_lab_report,load_latest_signal_lab_review,
                              load_signal_lab_ledger)
+from core.opportunity_lifecycle import load_latest_lifecycle_report
 
-hero('Investment Desk','CIO + Market/Sector + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
-section_note('Research only. A broad daily hunt discovers candidates, the news agent monitors portfolio + persistent watchlist, and specialists wake only for relevant events. It never sends broker orders.')
+hero('Investment Desk','CIO + Regime/MTF + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
+section_note('Research only. A broad daily hunt discovers candidates; weekly, daily and hourly context confirms timing; specialists wake only for relevant events. It never sends broker orders.')
 user=current_user(); uid=user['user_id']
 improvement_policy=load_active_improvement_policy(uid)
 
@@ -289,15 +290,63 @@ if signal_weekly:
     scorecard=signal_weekly.get('scorecard') or []
     if scorecard:
         frame=pd.DataFrame(scorecard)
-        columns=['setup_id','variant','market_regime','role','sample','validation_sample','unique_tickers','hit_rate_pct','net_expectancy_pct','expectancy_alpha_pct','stop_rate_pct','mean_mfe_pct','mean_mae_pct','eligible']
+        columns=['setup_id','variant','market_regime','role','sample','training_sample_after_embargo','validation_sample','unique_tickers','hit_rate_pct','net_expectancy_pct','expectancy_alpha_pct','alpha_sign_p_adjusted','statistically_supported','stop_rate_pct','mean_mfe_pct','mean_mae_pct','eligible']
         st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
     if signal_weekly.get('proposals'):
         st.warning('A challenger improved out of sample. Human code review is required before any production change.')
 with st.expander('Signal Lab methodology and limits',expanded=False):
     ledger=load_signal_lab_ledger(uid)
     st.write(f"Stored virtual signals: **{len(ledger['signals'])}** · stored outcomes: **{len(ledger['outcomes'])}**")
-    st.caption('V2 enters at the next session open and includes commission, slippage, ATR stop, 2R target and conservative stop-first handling when daily OHLC cannot resolve intrabar order.')
+    st.caption('V2 enters at the next session open, applies liquidity/volatility-aware costs, ATR stop, 2R target and conservative stop-first handling. Weekly validation uses an embargo and multiple-testing control.')
 st.caption('The lab cannot rewrite thresholds, promote a variant, place a trade or alter production rankings by itself.')
+
+lifecycle_record=load_latest_lifecycle_report(uid)
+lifecycle=(lifecycle_record or {}).get('payload') or {}
+st.subheader('Opportunity Lifecycle & Shadow Book')
+st.caption('Evidence gate → technical trigger → risk capacity → next-session virtual fill → stop/target/time exit. No broker connection.')
+if not lifecycle:
+    st.info('The first post-close lifecycle run has not completed yet.')
+elif lifecycle.get('status')=='BLOCKED_UPSTREAM':
+    st.warning('The lifecycle is waiting for: '+', '.join(lifecycle.get('missing') or [])+'. No virtual position was opened.')
+else:
+    stages=lifecycle.get('stage_counts') or {}; book=lifecycle.get('book') or {}
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Evidence verified',stages.get('EVIDENCE_VERIFIED',0))
+    c2.metric('Entry ready',stages.get('ENTRY_READY',0))
+    c3.metric('Pending / open',f"{(book.get('status_counts') or {}).get('PENDING_ENTRY',0)} / {(book.get('status_counts') or {}).get('OPEN',0)}")
+    c4.metric('Weekly risk used',f"{float(book.get('weekly_risk_used_pct',0) or 0):.2f}%")
+    candidates=lifecycle.get('candidates') or []
+    if candidates:
+        frame=pd.DataFrame(candidates)
+        columns=['ticker','sleeve','stage','Sector','Priority Score','Entry Score','RR','confirmation_score',
+                 'weekly_bias','daily_bias','hourly_bias','market_regime','volatility_regime','relative_strength_spy_20d',
+                 'relative_strength_sector_20d','breadth_state','breakout_quality','fundamental_state',
+                 'technical_state','primary_catalyst','material_catalysts','gate_reasons']
+        st.dataframe(arrow_safe_frame(frame[[column for column in columns if column in frame]]),
+                     width='stretch',hide_index=True)
+    positions=book.get('positions') or []
+    if positions:
+        with st.expander('Virtual Shadow Book',expanded=True):
+            frame=pd.DataFrame(positions)
+            columns=['ticker','sleeve','status','direction','setup_id','confirmation_score','market_regime',
+                     'weekly_bias','daily_bias','hourly_bias','signal_at','entry_date','entry_price',
+                     'stop_price','target_price','planned_weight_pct','risk_budget_pct','correlation_peer',
+                     'correlation','market_beta','dominant_factor','portfolio_factor_weight_pct',
+                     'structural_invalidation_price','exit_date','exit_reason','net_return_pct','pnl_virtual']
+            st.dataframe(arrow_safe_frame(frame[[column for column in columns if column in frame]]),
+                         width='stretch',hide_index=True)
+    rejections=book.get('new_rejections') or []
+    if rejections:
+        st.caption('Risk capacity declined this cycle: '+', '.join(f"{row['ticker']} ({row['reason']})" for row in rejections))
+    factor_risk=lifecycle.get('factor_risk') or {}
+    if factor_risk:
+        with st.expander('Portfolio factor-risk diagnostics',expanded=False):
+            factor_rows=[{'Factor proxy':key,'Portfolio beta':value,
+                          'Dominant weight %':(factor_risk.get('dominant_factor_weights_pct') or {}).get(key,0)}
+                         for key,value in (factor_risk.get('portfolio_factor_betas') or {}).items()]
+            st.dataframe(pd.DataFrame(factor_rows),width='stretch',hide_index=True)
+            st.caption(factor_risk.get('proxy_warning',''))
+    st.caption('Virtual NAV is a measurement convention, not your account balance. Cash is valid; weekly risk, position, sector, correlation, beta and factor-concentration limits can leave an otherwise valid idea unfilled.')
 
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
 st.subheader('Paper Readiness Gate')

@@ -6,12 +6,15 @@ RECOVERABLE_TASKS = {
     'daily_cio': {'module': 'scripts.run_daily_cio_brief', 'timeout_seconds': 1500},
     'daily_snapshot': {'module': 'scripts.daily_refresh', 'timeout_seconds': 3300},
     'opportunity_hunt': {'module': 'scripts.run_daily_opportunity_hunt', 'timeout_seconds': 2100},
+    'signal_lab_daily': {'module': 'scripts.run_daily_signal_lab', 'timeout_seconds': 1200},
     'shadow_validation': {'module': 'scripts.evaluate_shadow_decisions', 'timeout_seconds': 900},
+    'opportunity_lifecycle': {'module': 'scripts.run_opportunity_lifecycle', 'timeout_seconds': 1500},
     'skill_calibration': {'module': 'scripts.run_skill_calibration_review', 'timeout_seconds': 600},
     'continuous_improvement': {'module': 'scripts.run_continuous_improvement_review', 'timeout_seconds': 600},
 }
 
-ORDER = ('daily_cio', 'daily_snapshot', 'opportunity_hunt', 'shadow_validation',
+ORDER = ('daily_cio', 'daily_snapshot', 'opportunity_hunt', 'signal_lab_daily', 'opportunity_lifecycle',
+         'shadow_validation',
          'skill_calibration', 'continuous_improvement')
 
 

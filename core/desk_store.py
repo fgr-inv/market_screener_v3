@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 import pandas as pd
+from core.durable_io import atomic_write_json
 from core.production_storage import cloud_available, ensure_production_schema, execute_sql, query_sql
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -20,8 +21,8 @@ def save_desk_output(user_id, output_type, payload, run_key=None):
     uid=str(user_id or 'local-user'); typ=str(output_type); ts=_now(); key=str(run_key or ts)
     rec={'user_id':uid,'output_type':typ,'run_key':key,'created_at':ts,'payload':payload}
     p=DIR/f'{_safe(uid)}_{typ}.json'
-    p.write_text(json.dumps(rec,ensure_ascii=False,default=str,indent=2),encoding='utf-8')
-    _run_path(uid,typ,key).write_text(json.dumps(rec,ensure_ascii=False,default=str,indent=2),encoding='utf-8')
+    atomic_write_json(p,rec)
+    atomic_write_json(_run_path(uid,typ,key),rec)
     persistence={'status':'LOCAL_ONLY','message':'DATABASE_URL not configured'}
     if cloud_available():
         ensure_production_schema()

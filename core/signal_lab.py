@@ -221,15 +221,32 @@ def detect_signal_experiments(ticker, history, benchmark=None, metadata=None, ob
             'average_dollar_volume_20d':_finite((frame.Close*frame.Volume).tail(20).mean()),
             'sector':str(meta.get('sector') or 'Unknown'),'universe_source':str(meta.get('universe_source') or 'Unknown'),
             'market_cap_bucket':str(meta.get('market_cap_bucket') or meta.get('universe_source') or 'Unknown'),
+            'universe_observed_at':_iso(observed_at or frame.index[-1]),
+            'point_in_time_mode':'PROSPECTIVE_SNAPSHOT','future_membership_used':False,
             'shadow_mode':True,'no_execution':True,
         })
     return group_signal_opportunities(results)
 
 
+def estimate_execution_costs(signal):
+    """Conservative, frozen cost proxy driven by asset class and observed liquidity."""
+    ticker=str(signal.get('ticker') if isinstance(signal,dict) else signal).upper()
+    crypto=ticker.endswith('-USD')
+    commission=CRYPTO_COMMISSION_BPS if crypto else EQUITY_COMMISSION_BPS
+    if crypto: slippage=CRYPTO_SLIPPAGE_BPS
+    else:
+        adv=_finite((signal or {}).get('average_dollar_volume_20d')) if isinstance(signal,dict) else None
+        bucket=str((signal or {}).get('market_cap_bucket') or '') if isinstance(signal,dict) else ''
+        if adv is not None:
+            slippage=3.0 if adv>=500_000_000 else 5.0 if adv>=100_000_000 else 10.0 if adv>=25_000_000 else 18.0
+        else: slippage=12.0 if 'Small' in bucket else 8.0 if 'Mid' in bucket else EQUITY_SLIPPAGE_BPS
+        if str((signal or {}).get('volatility_regime'))=='HIGH': slippage+=3.0
+    return commission,slippage
+
+
 def _execution_costs(ticker):
-    crypto=str(ticker).upper().endswith('-USD')
-    return ((CRYPTO_COMMISSION_BPS if crypto else EQUITY_COMMISSION_BPS),
-            (CRYPTO_SLIPPAGE_BPS if crypto else EQUITY_SLIPPAGE_BPS))
+    """Backward-compatible fixed proxy; new evaluations use full signal metadata."""
+    return estimate_execution_costs({'ticker':ticker})
 
 
 def _simulate_exit(path,entry,direction,atr,stop_atr=STOP_ATR,target_r=TARGET_R):
@@ -264,7 +281,7 @@ def evaluate_signal_experiments(signals, histories, benchmark=None, existing=Non
         signal_pos=positions[0]; entry_pos=signal_pos+1
         if entry_pos>=len(hist): continue
         direction=1 if signal.get('direction')=='LONG' else -1; atr=float(signal.get('baseline_atr') or 0)
-        commission_bps,slippage_bps=_execution_costs(signal.get('ticker'))
+        commission_bps,slippage_bps=estimate_execution_costs(signal)
         raw_entry=float(hist.iloc[entry_pos].Open)
         entry=raw_entry*(1+direction*slippage_bps/10000)
         for horizon in HORIZONS:
@@ -302,6 +319,7 @@ def evaluate_signal_experiments(signals, histories, benchmark=None, existing=Non
                 'mfe_pct':round(favorable,4),'mae_pct':round(adverse,4),
                 'mfe_atr':None if not atr else round(favorable/(atr/entry*100),4),
                 'mae_atr':None if not atr else round(adverse/(atr/entry*100),4),
+                'intrabar_resolution':'DAILY_STOP_FIRST_CONSERVATIVE',
                 'success':bool(net_return>0 and signed_alpha>0),'shadow_mode':True,
             })
     return outcomes
@@ -347,6 +365,22 @@ def _mean(rows,key):
     return None if not values else sum(values)/len(values)
 
 
+def _binomial_upper_tail(successes,total,probability=.5):
+    if total<=0: return None
+    return min(1.0,sum(math.comb(total,k)*(probability**k)*((1-probability)**(total-k))
+                       for k in range(successes,total+1)))
+
+
+def _chronological_validation(sample):
+    """Newest 30% with a 20-calendar-day embargo before validation begins."""
+    validation_size=max(MIN_REVIEW_VALIDATION,int(round(len(sample)*.30)))
+    split=max(0,len(sample)-validation_size); validation=sample[split:]
+    if not validation: return [],[]
+    boundary=pd.Timestamp(validation[0].get('signal_at'))-pd.Timedelta(days=20)
+    training=[row for row in sample[:split] if pd.Timestamp(row.get('signal_at'))<=boundary]
+    return training,validation
+
+
 def build_weekly_signal_lab_review(signals, outcomes, generated_at=None):
     signal_map={str(row.get('signal_key')):row for row in signals or []
                 if str(row.get('setup_version') or '1.0')==LAB_VERSION}
@@ -360,20 +394,29 @@ def build_weekly_signal_lab_review(signals, outcomes, generated_at=None):
     rows=[]
     for (setup,variant,market_regime), sample in sorted(groups.items()):
         sample.sort(key=lambda x:(str(x.get('signal_at')),str(x.get('signal_key'))))
-        validation_size=max(MIN_REVIEW_VALIDATION,int(round(len(sample)*.30)))
-        validation=sample[max(0,len(sample)-validation_size):]
+        training,validation=_chronological_validation(sample)
+        positive_alpha=sum((_finite(x.get('signed_alpha_pct')) or 0)>0 for x in validation)
+        raw_p=_binomial_upper_tail(positive_alpha,len(validation))
         rows.append({'setup_id':setup,'variant':variant,'setup_version':LAB_VERSION,'market_regime':market_regime,
                      'role':sample[0].get('role'),'sample':len(sample),
-                     'validation_sample':len(validation),'unique_tickers':len({x.get('ticker') for x in sample}),
+                     'training_sample_after_embargo':len(training),'validation_sample':len(validation),
+                     'unique_tickers':len({x.get('ticker') for x in sample}),
                      'hit_rate_pct':round(100*sum(bool(x.get('success')) for x in validation)/len(validation),1) if validation else None,
                      'expectancy_alpha_pct':None if not validation else round(_mean(validation,'signed_alpha_pct'),4),
                      'mean_mfe_pct':None if not validation else round(_mean(validation,'mfe_pct'),4),
                      'mean_mae_pct':None if not validation else round(_mean(validation,'mae_pct'),4),
                      'net_expectancy_pct':None if not validation else round(_mean(validation,'signed_return_pct'),4),
                      'stop_rate_pct':None if not validation else round(100*sum(str(x.get('exit_reason','')).startswith('STOP') for x in validation)/len(validation),1),
+                     'positive_alpha_count':positive_alpha,'alpha_sign_p_value':raw_p,
                      'eligible':len(sample)>=MIN_REVIEW_SAMPLE and len(validation)>=MIN_REVIEW_VALIDATION and len({x.get('ticker') for x in sample})>=MIN_REVIEW_TICKERS})
+    tests=max(1,sum(bool(row['eligible']) for row in rows))
+    for row in rows:
+        raw=row.get('alpha_sign_p_value')
+        row['alpha_sign_p_adjusted']=None if raw is None else round(min(1.0,raw*tests),6)
+        row['statistically_supported']=bool(row['eligible'] and row['alpha_sign_p_adjusted']<=.05 and
+                                            (row.get('expectancy_alpha_pct') or 0)>0)
     proposals=[]
-    for challenger in [x for x in rows if x['role']=='CHALLENGER' and x['eligible']]:
+    for challenger in [x for x in rows if x['role']=='CHALLENGER' and x['statistically_supported']]:
         champion=next((x for x in rows if x['setup_id']==challenger['setup_id'] and
                        x['market_regime']==challenger['market_regime'] and x['role']=='CHAMPION' and x['eligible']),None)
         if not champion: continue
@@ -388,10 +431,10 @@ def build_weekly_signal_lab_review(signals, outcomes, generated_at=None):
     return {'status':status,'generated_at':_iso(generated_at),'lab_version':LAB_VERSION,'primary_horizon_days':PRIMARY_HORIZON,
             'setups_reviewed':len(rows),'eligible_variants':sum(bool(x['eligible']) for x in rows),'proposals':proposals,
             'scorecard':rows,'automatic_rule_changes':0,'structural_changes':'HUMAN_REVIEW_REQUIRED',
-            'execution_policy':{'entry':'NEXT_SESSION_OPEN','commission_bps_equity':EQUITY_COMMISSION_BPS,
-                'slippage_bps_equity':EQUITY_SLIPPAGE_BPS,'stop_atr':STOP_ATR,'target_r':TARGET_R,
+            'execution_policy':{'entry':'NEXT_SESSION_OPEN','commission_bps_equity_base':EQUITY_COMMISSION_BPS,
+                'slippage_model':'LIQUIDITY_AND_VOLATILITY_AWARE','stop_atr':STOP_ATR,'target_r':TARGET_R,
                 'same_bar_ambiguity':'STOP_FIRST_CONSERVATIVE'},
-            'method':'Chronological 70/30 split by setup and market regime; newest 30% is validation. Version 1.0 close-entry evidence is excluded.',
+            'method':'Chronological 70/30 split by setup and market regime, 20-calendar-day embargo, and Bonferroni-adjusted alpha sign test. Version 1.0 close-entry evidence is excluded.',
             'shadow_mode':True,'no_execution':True}
 
 

@@ -1,4 +1,10 @@
-# Market Screener Pro V11.39.6 — Automated Research Terminal
+# Market Screener Pro V11.39.9 — Automated Research Terminal
+
+V11.39.9 includes the V11.39.7/8 lifecycle and fail-closed Regime & Multi-Timeframe gate, plus durable atomic storage, broader bounded database retries, liquidity-aware research costs, point-in-time provenance, embargoed multiple-testing controls and portfolio factor-risk diagnostics. The professional
+opportunity lifecycle: weekly/daily/hourly alignment, SPY and sector relative
+strength, broad-market participation, volatility regime, breakout quality and
+structural invalidation are frozen before a virtual Shadow Book entry. The
+system remains research-only and cannot transmit orders.
 
 V8 focuses on reliability, persistence, auditability and portfolio risk rather than adding more indicators.
 
