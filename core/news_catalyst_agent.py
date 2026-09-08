@@ -107,17 +107,19 @@ def classify_catalyst_stories(stories,portfolio_tickers=None,theses=None):
     return rows
 
 
-def _freshness(published_at,max_age_hours=72):
+def _freshness(published_at,max_age_hours=72,now=None):
     try:
         ts=pd.Timestamp(published_at)
         if ts.tzinfo is None: ts=ts.tz_localize('UTC')
-        age=max(0,(pd.Timestamp(datetime.now(timezone.utc))-ts.tz_convert('UTC')).total_seconds()/3600)
+        current=pd.Timestamp(now or datetime.now(timezone.utc))
+        if current.tzinfo is None: current=current.tz_localize('UTC')
+        age=max(0,(current.tz_convert('UTC')-ts.tz_convert('UTC')).total_seconds()/3600)
         return (DataStatus.CURRENT if age<=max_age_hours else DataStatus.STALE),round(age,1)
     except Exception:
         return DataStatus.NOT_CHECKED,None
 
 
-def analyze_news_catalyst(ticker,stories,thesis=None,portfolio=False):
+def analyze_news_catalyst(ticker,stories,thesis=None,portfolio=False,observed_at=None):
     ticker=_text(ticker).upper(); rows=classify_catalyst_stories(stories,[ticker] if portfolio else [],{ticker:thesis or {}})
     rows=[row for row in rows if _text(row.get('ticker')).upper()==ticker]
     if not rows:
@@ -136,7 +138,7 @@ def analyze_news_catalyst(ticker,stories,thesis=None,portfolio=False):
     else: state='MONITOR'
     evidence=[]
     for row in rows[:3]:
-        status,age=_freshness(row.get('published_at'))
+        status,age=_freshness(row.get('published_at'),now=observed_at)
         evidence.append(Evidence(row.get('title'),row.get('category'),row.get('url') or row.get('provider'),
                                  observed_at=row.get('published_at') or datetime.now(timezone.utc).isoformat(),status=status,
                                  note=f"{row.get('publisher')} · direction {row.get('direction')} · severity {row.get('severity')}/5"+

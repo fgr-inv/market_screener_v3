@@ -54,14 +54,14 @@ def test_news_event_has_story_identity_and_routes_news_plus_fundamental():
 
 def test_media_only_material_story_is_only_partially_verified():
     story=_story(source_type='NEWS',provider='FMP',publisher='News outlet',primary_source=False)
-    result=verify_result(analyze_news_catalyst('AMD',[story]))
+    result=verify_result(analyze_news_catalyst('AMD',[story],observed_at=NOW))
     assert result.state=='MATERIAL_POSITIVE'
     assert result.verification_status.value=='PARTIALLY_VERIFIED'
     assert result.metadata['primary_source_observed'] is False
 
 
 def test_primary_story_is_verified_and_preserves_url_and_date():
-    result=verify_result(analyze_news_catalyst('AMD',[_story()]))
+    result=verify_result(analyze_news_catalyst('AMD',[_story()],observed_at=NOW))
     assert result.verification_status.value=='VERIFIED'
     assert result.metadata['articles'][0]['url']=='https://example.test/amd'
     assert result.metadata['articles'][0]['published_at'].startswith('2026-09-03')

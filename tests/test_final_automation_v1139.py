@@ -118,7 +118,8 @@ def test_final_release_contract_is_shadow_only_and_resilient():
     workflow=(root/'.github/workflows/automation_resilience.yml').read_text(encoding='utf-8')
     recovery=(root/'scripts/run_automation_recovery.py').read_text(encoding='utf-8')
     refresh=(root/'core/refresh.py').read_text(encoding='utf-8')
-    assert 'APP_VERSION = "11.39.4"' in config
+    version=config.split('APP_VERSION = "',1)[1].split('"',1)[0]
+    assert tuple(int(part) for part in version.split('.')) >= (11,39,4)
     assert 'schedule:' in workflow and 'contents: write' in workflow
     assert 'FMP US mid/small-cap supplement' in refresh and 'analyze_emerging_trend' in refresh
     assert 'recover missed durable processes once' in workflow.lower()

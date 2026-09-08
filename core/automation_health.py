@@ -27,6 +27,8 @@ PROCESS_LABELS={
     'shadow_validation':'Validación Shadow 1/5/20',
     'skill_calibration':'Calibración semanal',
     'continuous_improvement':'Mejora continua semanal',
+    'signal_lab_daily':'Laboratorio técnico diario',
+    'signal_lab_weekly':'Revisión técnica semanal',
 }
 
 
@@ -156,6 +158,16 @@ def build_automation_health(user_id,now=None,current_failures=None):
                              load_latest_desk_output(uid,'automation_heartbeat_continuous_improvement'),
                              improvement_due,7*24*60+180,local_now,
                              'Champion/challenger semanal; ajustes automáticos limitados a confianza.'))
+    signal_due=market_day and minutes>=20*60+45
+    checks.append(_check_business_date('signal_lab_daily',
+                                       load_latest_desk_output(uid,'signal_lab_daily_report'),
+                                       signal_due,postclose_expected,local_now,
+                                       'Experimentos virtuales 1/3/5/10/20; acciones large/mid/small y activos prioritarios.'))
+    signal_weekly_due=local_now.weekday()==5 and minutes>=12*60
+    checks.append(_check_age('signal_lab_weekly',
+                             load_latest_desk_output(uid,'automation_heartbeat_signal_lab_weekly'),
+                             signal_weekly_due,7*24*60+180,local_now,
+                             'Champion/challenger técnico sujeto a revisión humana.'))
 
     failures={str(key):str(value) for key,value in (current_failures or {}).items() if value}
     for process,reason in failures.items():

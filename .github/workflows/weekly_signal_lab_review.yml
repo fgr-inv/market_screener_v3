@@ -1,0 +1,37 @@
+name: Weekly technical signal review
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Saturday, after forward validation and the existing confidence review.
+    - cron: '30 16 * * 6'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-technical-signal-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Require persistent database
+        run: test -n "${DATABASE_URL}" || (echo "DATABASE_URL is required" && exit 1)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Compare champion and challenger variants
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
+        run: python -m scripts.run_weekly_signal_lab_review

@@ -21,6 +21,8 @@ from core.production_storage import storage_mode
 from core.news_catalyst_data import merge_news_scan_records
 from core.continuous_improvement import (apply_improvement_policy,load_active_improvement_policy,
                                          load_latest_improvement_review)
+from core.signal_lab import (load_latest_signal_lab_report,load_latest_signal_lab_review,
+                             load_signal_lab_ledger)
 
 hero('Investment Desk','CIO + Market/Sector + Technical + Fundamental + News/Catalysts + Portfolio/Risk + Verification · shadow mode.','Agent Desk V1')
 section_note('Research only. A broad daily hunt discovers candidates, the news agent monitors portfolio + persistent watchlist, and specialists wake only for relevant events. It never sends broker orders.')
@@ -257,6 +259,45 @@ else:
         st.caption('The current champion was retained; no challenger cleared every validation gate.')
     st.caption(f"Latest persisted review: {improvement_record.get('created_at','N/D')}.")
 st.caption('Only confidence calibration can change automatically. Signal direction, thresholds, code, providers and execution require a reviewed release. GitHub Agent proposals never merge themselves.')
+
+signal_daily_record=load_latest_signal_lab_report(uid)
+signal_weekly_record=load_latest_signal_lab_review(uid)
+signal_daily=(signal_daily_record or {}).get('payload') or {}
+signal_weekly=(signal_weekly_record or {}).get('payload') or {}
+st.subheader('Technical Signal Lab')
+st.caption('Daily virtual experiments across large, mid and small caps; weekly chronological Champion/Challenger review. Research only.')
+if not signal_daily:
+    st.info('The first daily technical signal experiment has not run yet.')
+else:
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Universe tested',signal_daily.get('universe_size',0))
+    c2.metric('New signals',signal_daily.get('new_signals',0))
+    c3.metric('New matured outcomes',signal_daily.get('matured_outcomes',0))
+    c4.metric('5d hit rate','N/D' if signal_daily.get('primary_hit_rate_pct') is None else f"{signal_daily['primary_hit_rate_pct']:.1f}%")
+    signal_rows=signal_daily.get('signals') or []
+    if signal_rows:
+        frame=pd.DataFrame(signal_rows)
+        columns=['signal_at','ticker','setup_id','variant','role','direction','baseline_price','rvol','adx','regime','sector','universe_source']
+        st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
+if signal_weekly:
+    st.write('**Weekly Champion / Challenger review**')
+    c1,c2,c3,c4=st.columns(4)
+    c1.metric('Status',signal_weekly.get('status','N/D'))
+    c2.metric('Setups reviewed',signal_weekly.get('setups_reviewed',0))
+    c3.metric('Eligible variants',signal_weekly.get('eligible_variants',0))
+    c4.metric('Automatic rule changes',signal_weekly.get('automatic_rule_changes',0))
+    scorecard=signal_weekly.get('scorecard') or []
+    if scorecard:
+        frame=pd.DataFrame(scorecard)
+        columns=['setup_id','variant','role','sample','validation_sample','unique_tickers','hit_rate_pct','expectancy_alpha_pct','mean_mfe_pct','mean_mae_pct','eligible']
+        st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
+    if signal_weekly.get('proposals'):
+        st.warning('A challenger improved out of sample. Human code review is required before any production change.')
+with st.expander('Signal Lab methodology and limits',expanded=False):
+    ledger=load_signal_lab_ledger(uid)
+    st.write(f"Stored virtual signals: **{len(ledger['signals'])}** · stored outcomes: **{len(ledger['outcomes'])}**")
+    st.caption('Outcomes: 1/3/5/10/20 trading days, signed return, alpha versus SPY, MFE and MAE. No future data is used when creating a signal.')
+st.caption('The lab cannot rewrite thresholds, promote a variant, place a trade or alter production rankings by itself.')
 
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
 st.subheader('Paper Readiness Gate')
