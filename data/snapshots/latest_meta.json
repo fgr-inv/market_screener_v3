@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-08T23:48:49.467360+00:00",
+  "generated_at": "2026-09-09T22:34:14.739024+00:00",
   "scan_limit": 2200,
   "equity_universe_rows": 1512,
   "live_universe_rows": 1512,
@@ -23,23 +23,23 @@
     ]
   },
   "cap_segment_rows": {
-    "Small Cap": 541,
+    "Small Cap": 542,
     "Large Cap": 500,
     "Mid Cap": 400,
     "Unknown": 6
   },
   "trend_phase_rows": {
-    "NO_QUALIFIED_SETUP": 1087,
-    "ESTABLISHED_LEADER": 209,
-    "BASE_NEAR_BREAKOUT": 84,
-    "RECOVERY_WATCH": 29,
-    "BREAKOUT_CONFIRMED": 22,
-    "EARLY_ACCELERATION": 16
+    "NO_QUALIFIED_SETUP": 1140,
+    "ESTABLISHED_LEADER": 175,
+    "BASE_NEAR_BREAKOUT": 68,
+    "RECOVERY_WATCH": 30,
+    "BREAKOUT_CONFIRMED": 20,
+    "EARLY_ACCELERATION": 15
   },
   "symbols_requested": 1541,
   "symbols_downloaded": 1541,
-  "symbols_scored": 1447,
-  "symbol_failures": 65,
+  "symbols_scored": 1448,
+  "symbol_failures": 64,
   "failure_examples": [
     [
       "FDXF",
@@ -94,15 +94,15 @@
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
+      "CNXN",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
       "COTY",
       "LIQUIDITY_LOW_PRICE"
     ],
     [
       "CPF",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
-    ],
-    [
-      "CSR",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
@@ -130,15 +130,15 @@
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
-      "FIZZ",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
-    ],
-    [
       "FOXF",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
       "HAFC",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "HFWA",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ]
   ]
