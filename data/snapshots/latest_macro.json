@@ -1,23 +1,23 @@
 {
-  "Risk_Appetite": 42,
+  "Risk_Appetite": 58,
   "Credit": 64,
   "Rates": 38,
   "Liquidity": 50,
-  "Growth": 60,
+  "Growth": 40,
   "Inflation_Pressure": 70,
-  "Breadth": 38,
-  "VIX": 17.84000015258789,
-  "Copper_Gold_20d": 0.010446837858659519,
-  "Oil_20d": 0.24798849955998348,
-  "US10Y_20d": 0.05595890604882481,
-  "US10Y_20d_bps": 26.199960708618164,
-  "Dollar_20d": -0.006028371336690208,
-  "HYG_IEF_20d": 0.008737083956444014,
-  "Macro_Score": 47,
+  "Breadth": 43,
+  "VIX": 15.84000015258789,
+  "Copper_Gold_20d": -0.004911008933616512,
+  "Oil_20d": 0.23064612755408653,
+  "US10Y_20d": 0.07196727546886938,
+  "US10Y_20d_bps": 33.40001106262207,
+  "Dollar_20d": -0.0039034992604793928,
+  "HYG_IEF_20d": 0.011771960817213545,
+  "Macro_Score": 48,
   "Macro_Score_20d_Ago": 55,
-  "Macro_Delta_20d": -9,
+  "Macro_Delta_20d": -8,
   "Risk_Regime": "NEUTRAL",
-  "Economic_Regime": "REFLATION",
+  "Economic_Regime": "STAGFLATION RISK",
   "Momentum": "DETERIORATING",
   "Slow_Macro_Score": 51.0,
   "Slow_Growth": 51.0,
@@ -25,9 +25,9 @@
   "Slow_Policy": 58.0,
   "Economic_Regime_Slow": "STAGFLATION RISK",
   "Data_Quality_%": 100,
-  "Core_CPI_YoY": 2.786747157096725,
+  "Core_CPI_YoY": 2.7634613395318253,
   "Core_PCE_YoY": 3.3441430040338282,
-  "CPI_YoY": 3.5397514271936714,
+  "CPI_YoY": 3.7129581058388483,
   "PCE_YoY": 3.7011657214870874,
   "Industrial_Production_YoY": 1.0794551200266955,
   "Manufacturing_Production_YoY": 1.2692045318973388,
@@ -38,8 +38,8 @@
   "Payroll_3m_Avg_Change": 71.33333333333333,
   "Fed_Funds": 3.63,
   "Fed_Funds_6m_Change": -0.010000000000000231,
-  "10Y_2Y": 0.39,
-  "10Y_Breakeven": 2.4,
+  "10Y_2Y": 0.33,
+  "10Y_Breakeven": 2.36,
   "NFCI": -0.564,
   "ISM_PMI": null,
   "Missing": [],
@@ -48,14 +48,14 @@
       "series_id": "CPIAUCSL",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Core CPI": {
       "series_id": "CPILFESL",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Headline PCE": {
@@ -125,14 +125,14 @@
       "series_id": "T10Y2Y",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-10 00:00:00",
+      "latest_date": "2026-09-11 00:00:00",
       "error": null
     },
     "10Y Breakeven": {
       "series_id": "T10YIE",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-10 00:00:00",
+      "latest_date": "2026-09-11 00:00:00",
       "error": null
     },
     "Financial Conditions": {
@@ -146,13 +146,13 @@
   "Slow_Table": [
     {
       "Indicator": "Core CPI YoY",
-      "Value": 2.786747157096725,
-      "Previous": 2.80581107579545,
+      "Value": 2.7634613395318253,
+      "Previous": 2.786747157096725,
       "Trend": "↓",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Core PCE YoY",
@@ -166,13 +166,13 @@
     },
     {
       "Indicator": "Headline CPI YoY",
-      "Value": 3.5397514271936714,
-      "Previous": 3.7265298484186804,
-      "Trend": "↓",
+      "Value": 3.7129581058388483,
+      "Previous": 3.5397514271936714,
+      "Trend": "↑",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Headline PCE YoY",
@@ -276,23 +276,23 @@
     },
     {
       "Indicator": "10Y-2Y",
-      "Value": 0.39,
-      "Previous": 0.4,
+      "Value": 0.33,
+      "Previous": 0.39,
       "Trend": "↓",
       "Unit": "pp",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-10 00:00:00"
+      "Updated": "2026-09-11 00:00:00"
     },
     {
       "Indicator": "10Y Breakeven",
-      "Value": 2.4,
-      "Previous": 2.37,
-      "Trend": "↑",
+      "Value": 2.36,
+      "Previous": 2.4,
+      "Trend": "↓",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-10 00:00:00"
+      "Updated": "2026-09-11 00:00:00"
     },
     {
       "Indicator": "NFCI",
@@ -306,7 +306,7 @@
     }
   ],
   "FRED_Key_Configured": true,
-  "Fast_Macro_Score": 46,
+  "Fast_Macro_Score": 47,
   "Slow_Layer_Used": true,
   "Institutional_Regime": "NEUTRAL"
 }

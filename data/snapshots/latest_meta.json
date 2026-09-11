@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-10T22:33:27.195763+00:00",
+  "generated_at": "2026-09-11T22:34:53.680430+00:00",
   "scan_limit": 2200,
   "equity_universe_rows": 1512,
   "live_universe_rows": 1512,
@@ -29,12 +29,12 @@
     "Unknown": 6
   },
   "trend_phase_rows": {
-    "NO_QUALIFIED_SETUP": 1171,
-    "ESTABLISHED_LEADER": 162,
-    "BASE_NEAR_BREAKOUT": 64,
-    "RECOVERY_WATCH": 23,
-    "EARLY_ACCELERATION": 18,
-    "BREAKOUT_CONFIRMED": 11
+    "NO_QUALIFIED_SETUP": 1150,
+    "ESTABLISHED_LEADER": 167,
+    "BASE_NEAR_BREAKOUT": 73,
+    "RECOVERY_WATCH": 22,
+    "BREAKOUT_CONFIRMED": 19,
+    "EARLY_ACCELERATION": 18
   },
   "symbols_requested": 1541,
   "symbols_downloaded": 1541,
@@ -110,6 +110,10 @@
       "NO_PRICE_DATA"
     ],
     [
+      "DCOM",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
       "DEA",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
@@ -135,10 +139,6 @@
     ],
     [
       "HFWA",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
-    ],
-    [
-      "HSTM",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ]
   ]
