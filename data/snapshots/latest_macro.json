@@ -1,21 +1,21 @@
 {
-  "Risk_Appetite": 58,
+  "Risk_Appetite": 50,
   "Credit": 64,
   "Rates": 38,
   "Liquidity": 50,
   "Growth": 40,
-  "Inflation_Pressure": 70,
-  "Breadth": 43,
-  "VIX": 15.84000015258789,
-  "Copper_Gold_20d": -0.004911008933616512,
-  "Oil_20d": 0.23064612755408653,
-  "US10Y_20d": 0.07196727546886938,
-  "US10Y_20d_bps": 33.40001106262207,
-  "Dollar_20d": -0.0039034992604793928,
-  "HYG_IEF_20d": 0.011771960817213545,
-  "Macro_Score": 48,
-  "Macro_Score_20d_Ago": 55,
-  "Macro_Delta_20d": -8,
+  "Inflation_Pressure": 80,
+  "Breadth": 42,
+  "VIX": 17.100000381469727,
+  "Copper_Gold_20d": -0.009133020166080197,
+  "Oil_20d": 0.237499991898398,
+  "US10Y_20d": 0.05643097548736198,
+  "US10Y_20d_bps": 26.49998664855957,
+  "Dollar_20d": 0.002134452673056453,
+  "HYG_IEF_20d": 0.009953422200415618,
+  "Macro_Score": 47,
+  "Macro_Score_20d_Ago": 57,
+  "Macro_Delta_20d": -12,
   "Risk_Regime": "NEUTRAL",
   "Economic_Regime": "STAGFLATION RISK",
   "Momentum": "DETERIORATING",
@@ -38,8 +38,8 @@
   "Payroll_3m_Avg_Change": 71.33333333333333,
   "Fed_Funds": 3.63,
   "Fed_Funds_6m_Change": -0.010000000000000231,
-  "10Y_2Y": 0.33,
-  "10Y_Breakeven": 2.36,
+  "10Y_2Y": 0.32,
+  "10Y_Breakeven": 2.37,
   "NFCI": -0.564,
   "ISM_PMI": null,
   "Missing": [],
@@ -125,14 +125,14 @@
       "series_id": "T10Y2Y",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-11 00:00:00",
+      "latest_date": "2026-09-14 00:00:00",
       "error": null
     },
     "10Y Breakeven": {
       "series_id": "T10YIE",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-11 00:00:00",
+      "latest_date": "2026-09-14 00:00:00",
       "error": null
     },
     "Financial Conditions": {
@@ -276,23 +276,23 @@
     },
     {
       "Indicator": "10Y-2Y",
-      "Value": 0.33,
-      "Previous": 0.39,
+      "Value": 0.32,
+      "Previous": 0.33,
       "Trend": "↓",
       "Unit": "pp",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-11 00:00:00"
+      "Updated": "2026-09-14 00:00:00"
     },
     {
       "Indicator": "10Y Breakeven",
-      "Value": 2.36,
-      "Previous": 2.4,
-      "Trend": "↓",
+      "Value": 2.37,
+      "Previous": 2.36,
+      "Trend": "↑",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-11 00:00:00"
+      "Updated": "2026-09-14 00:00:00"
     },
     {
       "Indicator": "NFCI",
@@ -306,7 +306,7 @@
     }
   ],
   "FRED_Key_Configured": true,
-  "Fast_Macro_Score": 47,
+  "Fast_Macro_Score": 45,
   "Slow_Layer_Used": true,
   "Institutional_Regime": "NEUTRAL"
 }
