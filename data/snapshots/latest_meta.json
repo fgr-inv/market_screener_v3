@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T22:37:18.857182+00:00",
+  "generated_at": "2026-09-15T22:35:44.874075+00:00",
   "scan_limit": 2200,
   "equity_universe_rows": 1512,
   "live_universe_rows": 1512,
@@ -29,12 +29,12 @@
     "Unknown": 6
   },
   "trend_phase_rows": {
-    "NO_QUALIFIED_SETUP": 1136,
-    "ESTABLISHED_LEADER": 156,
-    "BASE_NEAR_BREAKOUT": 85,
-    "BREAKOUT_CONFIRMED": 33,
-    "RECOVERY_WATCH": 24,
-    "EARLY_ACCELERATION": 17
+    "NO_QUALIFIED_SETUP": 1140,
+    "ESTABLISHED_LEADER": 146,
+    "BASE_NEAR_BREAKOUT": 69,
+    "BREAKOUT_CONFIRMED": 49,
+    "RECOVERY_WATCH": 25,
+    "EARLY_ACCELERATION": 22
   },
   "symbols_requested": 1541,
   "symbols_downloaded": 1541,
