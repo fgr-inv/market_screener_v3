@@ -15,6 +15,8 @@ from core.desk_store import load_desk_output, load_latest_desk_output, save_desk
 from core.notification_settings import get_user_webhook
 from core.portfolio_positions import resolve_position_allocations
 from core.factor_risk import factor_profile
+from core.desk_mandate import (invalidating_catalyst_evidence, mandate_public_summary,
+                               qualifying_catalyst_evidence)
 
 
 LIFECYCLE_VERSION='1.0'
@@ -72,12 +74,15 @@ def _news_map(news_payload):
         material=bool(story.get('material') or int(story.get('severity') or raw.get('severity') or 0)>=4)
         primary=bool(story.get('primary_source'))
         if material: output.setdefault(ticker,[]).append({'primary':primary,'title':story.get('title'),
-            'published_at':story.get('published_at'),'direction':story.get('direction'),'url':story.get('url')})
+            'summary':story.get('summary'),'category':story.get('category'),'form':story.get('form'),
+            'items':story.get('items'),'source_type':story.get('source_type'),
+            'published_at':story.get('published_at'),'direction':story.get('direction'),
+            'thesis_impact':story.get('thesis_impact'),'url':story.get('url')})
     return output
 
 
 def build_opportunity_lifecycle(shortlist,verified,signals,theses=None,news_payload=None,generated_at=None,
-                                confirmations=None):
+                                confirmations=None,mandate=None):
     """Build transparent stages; absence of evidence never becomes a neutral pass."""
     verified_map={str(row.get('Ticker','')).upper():row for row in verified or []}
     signal_map={}
@@ -94,25 +99,34 @@ def build_opportunity_lifecycle(shortlist,verified,signals,theses=None,news_payl
         fundamental=str((checked or {}).get('Fundamental') or 'NOT_CHECKED').upper()
         technical=str((checked or {}).get('Technical') or 'NOT_CHECKED').upper()
         source_verified=any(story.get('primary') for story in stories)
+        official_catalysts=qualifying_catalyst_evidence(stories,mandate,generated_at) if mandate else []
+        official_invalidations=invalidating_catalyst_evidence(stories,mandate,generated_at) if mandate else []
         thesis_active=str(thesis.get('status') or '').upper() in {'ACTIVE','WATCH',''} and bool(thesis.get('thesis'))
         evidence_ok=bool(checked and fundamental in {'IMPROVING','INTACT'} and
                          int(_finite(checked.get('Verified Specialists'),0))>=2)
-        thesis_or_catalyst=bool(thesis_active or source_verified)
+        thesis_or_catalyst=(bool(official_catalysts) if mandate and mandate.get('require_primary_catalyst')
+                            else bool(thesis_active or source_verified))
         entry_score=_finite(seed.get('Entry Score'),0); rr=_finite(seed.get('RR'),0)
         signal_ok=bool(ticker_signals)
         confirmation=confirmation_map.get(ticker) or {}
         confirmation_ok=bool(confirmation.get('gate_pass'))
+        atr_extension=_finite((confirmation.get('breakout_quality') or {}).get('atr_extension'))
+        price_chased=bool(mandate and atr_extension is not None and atr_extension>1.75)
         reasons=[]
         if not checked: reasons.append('SPECIALIST_VERIFICATION_PENDING')
         if fundamental not in {'IMPROVING','INTACT'}: reasons.append('FUNDAMENTAL_GATE_NOT_PASSED')
         if not signal_ok: reasons.append('NO_CURRENT_TECHNICAL_TRIGGER')
         if signal_ok and not confirmation_ok: reasons.append('REGIME_OR_MULTITIMEFRAME_NOT_CONFIRMED')
-        if not thesis_or_catalyst: reasons.append('NO_ACTIVE_THESIS_OR_PRIMARY_CATALYST')
+        if price_chased: reasons.append('PRICE_CHASED')
+        if not thesis_or_catalyst:
+            reasons.append('NO_QUALIFYING_OFFICIAL_CATALYST' if mandate and mandate.get('require_primary_catalyst')
+                           else 'NO_ACTIVE_THESIS_OR_PRIMARY_CATALYST')
         if entry_score<60: reasons.append('ENTRY_SCORE_BELOW_60')
         if rr and rr<1.5: reasons.append('RISK_REWARD_BELOW_1_5')
-        if str(thesis.get('status') or '').upper()=='INVALIDATED': reasons.append('THESIS_INVALIDATED')
+        if str(thesis.get('status') or '').upper()=='INVALIDATED' or official_invalidations:
+            reasons.append('THESIS_INVALIDATED')
         if 'THESIS_INVALIDATED' in reasons: stage='INVALIDATED'
-        elif evidence_ok and thesis_or_catalyst and signal_ok and confirmation_ok and entry_score>=60 and (rr==0 or rr>=1.5): stage='ENTRY_READY'
+        elif evidence_ok and thesis_or_catalyst and signal_ok and confirmation_ok and not price_chased and entry_score>=60 and (rr==0 or rr>=1.5): stage='ENTRY_READY'
         elif evidence_ok: stage='EVIDENCE_VERIFIED'
         elif checked: stage='WATCHLIST'
         else: stage='DISCOVERED'
@@ -123,6 +137,7 @@ def build_opportunity_lifecycle(shortlist,verified,signals,theses=None,news_payl
         candidates.append({**seed,'lifecycle_key':key,'ticker':ticker,'stage':stage,'sleeve':sleeve,
             'evidence_gate':evidence_ok,'thesis_or_catalyst_gate':thesis_or_catalyst,
             'technical_trigger':signal_ok,'fundamental_state':fundamental,
+            'price_chased':price_chased,'atr_extension':atr_extension,
             'confirmation_gate':confirmation_ok,'confirmation':confirmation,
             'confirmation_score':confirmation.get('confirmation_score'),
             'weekly_bias':confirmation.get('weekly_bias'),'daily_bias':confirmation.get('daily_bias'),
@@ -133,13 +148,17 @@ def build_opportunity_lifecycle(shortlist,verified,signals,theses=None,news_payl
             'breadth_state':(confirmation.get('breadth') or {}).get('state'),
             'breakout_quality':(confirmation.get('breakout_quality') or {}).get('score'),
             'technical_state':technical,'active_thesis':thesis_active,'primary_catalyst':source_verified,
-            'material_catalysts':len(stories),'signal_keys':[row.get('signal_key') for row in ticker_signals],
+            'material_catalysts':len(stories),'qualifying_official_catalysts':official_catalysts,
+            'qualifying_catalyst_count':len(official_catalysts),
+            'official_thesis_invalidations':official_invalidations,
+            'signal_keys':[row.get('signal_key') for row in ticker_signals],
             'opportunity_key':opportunity_key,
             'gate_reasons':reasons,'generated_at':_iso(generated_at),'shadow_mode':True,'no_execution':True})
     counts={stage:sum(row['stage']==stage for row in candidates) for stage in
             ('DISCOVERED','WATCHLIST','EVIDENCE_VERIFIED','ENTRY_READY','INVALIDATED')}
     return {'version':LIFECYCLE_VERSION,'generated_at':_iso(generated_at),'candidates':candidates,
-            'stage_counts':counts,'shadow_mode':True,'no_execution':True}
+            'stage_counts':counts,'mandate':mandate_public_summary(mandate) if mandate else None,
+            'shadow_mode':True,'no_execution':True}
 
 
 def _max_correlation(ticker,active,history_map):
@@ -158,13 +177,20 @@ def _max_correlation(ticker,active,history_map):
     return best,peer
 
 
-def _size_candidate(candidate,signal,active,history_map,weekly_risk_used,nav,factor_context=None):
-    sleeve=candidate['sleeve']; policy=SLEEVE_POLICY[sleeve]
+def _size_candidate(candidate,signal,active,history_map,weekly_risk_used,nav,factor_context=None,mandate=None):
+    sleeve=candidate['sleeve']
+    policies=(mandate or {}).get('sleeves') or SLEEVE_POLICY
+    if sleeve not in policies: return None,f'SLEEVE_NOT_ALLOWED_{sleeve}'
+    policy=policies[sleeve]
+    weekly_limit=float((mandate or {}).get('max_weekly_new_risk_pct',MAX_WEEKLY_NEW_RISK_PCT))
+    sector_limit=float((mandate or {}).get('max_sector_weight_pct',MAX_SECTOR_WEIGHT_PCT))
+    starter_fraction=float((mandate or {}).get('starter_fraction',1.0))
     if any(str(row.get('ticker','')).upper()==candidate['ticker'] for row in active):
         return None,'ALREADY_HELD_OR_ACTIVE'
     price=_finite(signal.get('baseline_price')); atr=_finite(signal.get('baseline_atr'))
     if not price or not atr: return None,'MISSING_PRICE_OR_ATR'
-    risk_pct=policy['risk_pct']; correlation,peer=_max_correlation(candidate['ticker'],active,history_map)
+    full_risk_pct=float(policy['risk_pct']); risk_pct=full_risk_pct*starter_fraction
+    correlation,peer=_max_correlation(candidate['ticker'],active,history_map)
     if correlation is not None and correlation>=.95: return None,f'CORRELATION_BLOCK_{peer}_{correlation:.2f}'
     if correlation is not None and correlation>=.80: risk_pct*=.5
     profile=factor_profile(candidate['ticker'],history_map)
@@ -175,20 +201,21 @@ def _size_candidate(candidate,signal,active,history_map,weekly_risk_used,nav,fac
         return None,f'EXTREME_MARKET_BETA_{market_beta:.2f}'
     if factor_weight>=70: return None,f'FACTOR_CAP_EXCEEDED_{dominant}_{factor_weight:.1f}'
     if (market_beta is not None and abs(market_beta)>=1.50) or factor_weight>=50: risk_pct*=.5
-    if weekly_risk_used+risk_pct>MAX_WEEKLY_NEW_RISK_PCT: return None,'WEEKLY_RISK_BUDGET_EXHAUSTED'
+    if weekly_risk_used+risk_pct>weekly_limit: return None,'WEEKLY_RISK_BUDGET_EXHAUSTED'
     risk_per_unit=STOP_ATR*atr
     units_by_risk=(nav*risk_pct/100)/risk_per_unit
-    units_by_weight=(nav*policy['max_weight_pct']/100)/price
+    units_by_weight=(nav*float(policy['max_weight_pct'])*starter_fraction/100)/price
     units=max(0,min(units_by_risk,units_by_weight))
     weight_pct=units*price/nav*100
     sector=str(candidate.get('Sector') or 'Unknown')
     sector_weight=sum(_finite(row.get('planned_weight_pct'),0) for row in active if str(row.get('sector'))==sector)
-    if sector_weight+weight_pct>MAX_SECTOR_WEIGHT_PCT: return None,'SECTOR_CAP_EXCEEDED'
+    if sector_weight+weight_pct>sector_limit: return None,'SECTOR_CAP_EXCEEDED'
     return {'risk_budget_pct':round(risk_pct,4),'planned_weight_pct':round(weight_pct,4),
             'planned_units':round(units,8),'reference_price':price,'atr':atr,'correlation':correlation,
             'correlation_peer':peer,'slippage_bps':policy['slippage_bps'],
             'commission_bps':policy['commission_bps'],'market_beta':market_beta,
-            'dominant_factor':dominant,'portfolio_factor_weight_pct':factor_weight,'policy':policy},None
+            'dominant_factor':dominant,'portfolio_factor_weight_pct':factor_weight,
+            'starter_fraction':starter_fraction,'full_position_risk_pct':full_risk_pct,'policy':policy},None
 
 
 def _fill_pending(position,history):
@@ -249,7 +276,7 @@ def portfolio_risk_context(positions,histories):
 
 
 def update_shadow_book(lifecycle,signals,histories,existing=None,generated_at=None,nav=VIRTUAL_NAV,
-                       portfolio_context=None,factor_context=None):
+                       portfolio_context=None,factor_context=None,mandate=None):
     book=list((existing or {}).get('positions') or []); signal_map={str(row.get('signal_key')):row for row in signals or []}
     updated=[]
     for position in book:
@@ -259,6 +286,9 @@ def update_shadow_book(lifecycle,signals,histories,existing=None,generated_at=No
     active=[row for row in updated if row.get('status') in {'PENDING_ENTRY','OPEN'}]
     iso=pd.Timestamp(generated_at or datetime.now()).isocalendar(); week_key=f'{iso.year}-W{iso.week:02d}'
     weekly_risk=sum(_finite(row.get('risk_budget_pct'),0) for row in updated if row.get('created_week')==week_key)
+    weekly_new_positions=sum(row.get('created_week')==week_key for row in updated)
+    max_weekly_positions=int((mandate or {}).get('max_new_positions_per_week',10**9))
+    max_open_positions=int((mandate or {}).get('max_open_positions',MAX_OPEN_POSITIONS))
     existing_opportunities={row.get('opportunity_key') for row in updated}
     rejected=[]
     ready=sorted([row for row in lifecycle.get('candidates',[]) if row.get('stage')=='ENTRY_READY'],
@@ -267,12 +297,14 @@ def update_shadow_book(lifecycle,signals,histories,existing=None,generated_at=No
         opportunity_key=candidate.get('opportunity_key')
         if not opportunity_key: continue
         if opportunity_key in existing_opportunities: continue
-        if len(active)>=MAX_OPEN_POSITIONS:
+        if weekly_new_positions>=max_weekly_positions:
+            rejected.append({'ticker':candidate['ticker'],'reason':'WEEKLY_NEW_POSITION_CAP_EXHAUSTED'}); continue
+        if len(active)>=max_open_positions:
             rejected.append({'ticker':candidate['ticker'],'reason':'MAX_OPEN_POSITIONS'}); continue
         signal=next((signal_map.get(key) for key in candidate.get('signal_keys',[]) if signal_map.get(key)),None)
         if not signal: continue
         sizing,reason=_size_candidate(candidate,signal,active+list(portfolio_context or []),histories,weekly_risk,nav,
-                                      factor_context=factor_context)
+                                      factor_context=factor_context,mandate=mandate)
         if reason:
             rejected.append({'ticker':candidate['ticker'],'reason':reason}); continue
         position={'book_key':hashlib.sha256(f"{candidate['opportunity_key']}|{LIFECYCLE_VERSION}".encode()).hexdigest()[:24],
@@ -285,22 +317,27 @@ def update_shadow_book(lifecycle,signals,histories,existing=None,generated_at=No
             'structural_invalidation':(candidate.get('confirmation') or {}).get('structural_invalidation'),
             'structural_invalidation_price':(candidate.get('confirmation') or {}).get('structural_invalidation_price'),
             'created_at':_iso(generated_at),'created_week':week_key,**sizing,'stop_atr':STOP_ATR,'target_r':TARGET_R,
+            'mandate_id':(mandate or {}).get('mandate_id'),'mandate_version':(mandate or {}).get('version'),
             'shadow_mode':True,'no_execution':True}
         updated.append(position); active.append(position); existing_opportunities.add(opportunity_key)
         weekly_risk+=sizing['risk_budget_pct']
+        weekly_new_positions+=1
     statuses={name:sum(row.get('status')==name for row in updated) for name in ('PENDING_ENTRY','OPEN','EXITED','INVALIDATED')}
     return {'version':LIFECYCLE_VERSION,'updated_at':_iso(generated_at),'virtual_nav':float(nav),'positions':updated[-2000:],
             'status_counts':statuses,'new_rejections':rejected,'weekly_risk_used_pct':round(weekly_risk,4),
+            'weekly_new_positions':weekly_new_positions,
+            'mandate':mandate_public_summary(mandate) if mandate else None,
             'cash_is_valid':True,'shadow_mode':True,'no_execution':True}
 
 
-def build_lifecycle_report(lifecycle,book,generated_at=None):
+def build_lifecycle_report(lifecycle,book,generated_at=None,mandate=None):
     exited=[row for row in book.get('positions',[]) if row.get('status')=='EXITED']
     return {'generated_at':_iso(generated_at),'stage_counts':lifecycle.get('stage_counts',{}),
             'candidates':lifecycle.get('candidates',[]),'book':book,
             'closed_trades':len(exited),'profitable_closed':sum(_finite(row.get('net_return_pct'),0)>0 for row in exited),
-            'policy':{'max_weekly_new_risk_pct':MAX_WEEKLY_NEW_RISK_PCT,'max_open_positions':MAX_OPEN_POSITIONS,
-                      'max_sector_weight_pct':MAX_SECTOR_WEIGHT_PCT,'sleeves':SLEEVE_POLICY},
+            'policy':(mandate_public_summary(mandate) if mandate else
+                      {'max_weekly_new_risk_pct':MAX_WEEKLY_NEW_RISK_PCT,'max_open_positions':MAX_OPEN_POSITIONS,
+                       'max_sector_weight_pct':MAX_SECTOR_WEIGHT_PCT,'sleeves':SLEEVE_POLICY}),
             'shadow_mode':True,'no_execution':True}
 
 

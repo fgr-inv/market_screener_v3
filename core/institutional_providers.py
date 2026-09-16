@@ -40,8 +40,6 @@ def provider_config() -> dict:
         'EIA_API_KEY': _secret('EIA_API_KEY'),
         'NASDAQ_DATA_LINK_API_KEY': _secret('NASDAQ_DATA_LINK_API_KEY'),
         'DATABASE_URL': _secret('DATABASE_URL'),
-        'ALPACA_API_KEY': _secret('ALPACA_API_KEY'),
-        'ALPACA_SECRET_KEY': _secret('ALPACA_SECRET_KEY'),
     }
 
 
@@ -382,5 +380,4 @@ def provider_capabilities():
         {'Provider': 'Trading Economics', 'Configured': bool(cfg['TRADINGECONOMICS_API_KEY']), 'Use': 'Legacy optional global macro connector; not required by V8.5 free stack', 'Integration': 'OPTIONAL PREMIUM'},
         {'Provider': 'Nasdaq Data Link', 'Configured': bool(cfg['NASDAQ_DATA_LINK_API_KEY']), 'Use': 'Optional commodity/economic datasets', 'Integration': 'RESERVED'},
         {'Provider': 'Cloud DB', 'Configured': bool(cfg['DATABASE_URL']), 'Use': 'Persistent production storage', 'Integration': 'ACTIVE'},
-        {'Provider': 'Alpaca read-only', 'Configured': bool(cfg['ALPACA_API_KEY'] and cfg['ALPACA_SECRET_KEY']), 'Use': 'Broker positions/account import', 'Integration': 'ACTIVE'},
     ])

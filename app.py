@@ -48,7 +48,7 @@ portfolio=[
     st.Page('views/optimizer.py',title='Portfolio Optimizer',icon='⚖️'),
     st.Page('views/stress_test.py',title='Stress Test',icon='🌪️'),
     st.Page('views/trade_journal.py',title='Trade Journal',icon='📓'),
-    st.Page('views/broker_data.py',title='Broker Import',icon='🏦'),
+    st.Page('views/position_import.py',title='Portfolio Import',icon='📥'),
 ]
 quant=[
     st.Page('views/model_validation.py',title='Model Validation',icon='🧪'),

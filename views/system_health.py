@@ -100,7 +100,7 @@ else:
 section_note('En Streamlit Cloud el filesystem puede ser efímero; para observability multi-instance conviene enviar logs a un servicio externo más adelante.')
 
 st.subheader('Secrets / integrations')
-keys=['FRED_API_KEY','EIA_API_KEY','FMP_API_KEY','COINGECKO_API_KEY','POLYGON_API_KEY','FINNHUB_API_KEY','NASDAQ_DATA_LINK_API_KEY','DATABASE_URL','ALPACA_API_KEY','GITHUB_REPO','GITHUB_PAT','ALERT_WEBHOOK_URL']
+keys=['FRED_API_KEY','EIA_API_KEY','FMP_API_KEY','COINGECKO_API_KEY','POLYGON_API_KEY','FINNHUB_API_KEY','NASDAQ_DATA_LINK_API_KEY','DATABASE_URL','GITHUB_REPO','GITHUB_PAT','ALERT_WEBHOOK_URL']
 status=[]
 for k in keys:
     exists=False

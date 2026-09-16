@@ -1,5 +1,7 @@
 # Market Screener Pro V11.39.9 — Automated Research Terminal
 
+> **Broker-free catalyst desk profile:** the US-equity lifecycle now supports a versioned, long-only research and internal-simulation mandate requiring a fresh official catalyst, verified fundamentals, technical and multi-timeframe confirmation, and available risk capacity. It permits at most two new virtual positions per week and has no external-account or order path. See `docs/US_EQUITIES_CATALYST_DESK.md`.
+
 V11.39.9 includes the V11.39.7/8 lifecycle and fail-closed Regime & Multi-Timeframe gate, plus durable atomic storage, broader bounded database retries, liquidity-aware research costs, point-in-time provenance, embargoed multiple-testing controls and portfolio factor-risk diagnostics. The professional
 opportunity lifecycle: weekly/daily/hourly alignment, SPY and sector relative
 strength, broad-market participation, volatility regime, breakout quality and

@@ -8,9 +8,11 @@ from zoneinfo import ZoneInfo
 from core.agent_audit import append_agent_audit
 from core.automation_health import record_automation_heartbeat
 from core.desk_store import load_desk_output, load_latest_desk_output, save_desk_output
+from core.desk_mandate import load_desk_mandate, mandate_public_summary
 from core.market_calendar import is_us_equity_session
 from core.config import SECTOR_ETFS
 from core.market_data import download_intraday_prices, download_prices
+from core.news_catalyst_data import merge_news_scan_records
 from core.opportunity_lifecycle import (build_lifecycle_report, build_opportunity_lifecycle,
                                         load_shadow_book, notify_lifecycle,
                                         portfolio_risk_context, save_lifecycle_state,
@@ -56,6 +58,7 @@ def _event_anchor_dates(news_payload):
 
 def main():
     uid=str(os.getenv('DEV_USER_ID','local-user') or 'local-user')
+    mandate=load_desk_mandate()
     if os.getenv('GITHUB_ACTIONS','').lower()=='true' and storage_mode()!='POSTGRES':
         print('ERROR: DATABASE_URL is required for the scheduled opportunity lifecycle.'); return 2
     now=datetime.now(ZoneInfo('America/New_York'))
@@ -85,6 +88,7 @@ def main():
         if stale_upstream: missing.append('current_market_date_upstream')
         blocked={'generated_at':now.isoformat(),'status':'BLOCKED_UPSTREAM','missing':missing,
                  'stage_counts':{},'candidates':[],'book':load_shadow_book(uid),
+                 'policy':mandate_public_summary(mandate),
                  'shadow_mode':True,'no_execution':True}
         save_desk_output(uid,'opportunity_lifecycle_report',blocked,run_key=run_key)
         record_automation_heartbeat(uid,'opportunity_lifecycle','FAILED',{'missing':missing})
@@ -95,10 +99,12 @@ def main():
     signals=signal_payload.get('signals') or []
     thesis_frame=load_theses(user_id=uid)
     theses=[] if thesis_frame is None or thesis_frame.empty else thesis_frame.to_dict('records')
-    news_record=(load_latest_desk_output(uid,'news_catalyst_priority_scan') or
-                 load_latest_desk_output(uid,'news_catalyst_scan'))
+    priority_news_record=load_latest_desk_output(uid,'news_catalyst_priority_scan')
+    full_news_record=load_latest_desk_output(uid,'news_catalyst_scan')
+    news_record=priority_news_record or full_news_record
     existing=load_shadow_book(uid)
-    news_payload=_payload(news_record); event_anchors=_event_anchor_dates(news_payload)
+    news_payload=merge_news_scan_records([priority_news_record,full_news_record])
+    event_anchors=_event_anchor_dates(news_payload)
     active_tickers=[str(row.get('ticker','')).upper() for row in existing.get('positions',[])
                     if row.get('status') in {'PENDING_ENTRY','OPEN'}]
     positions=load_positions(user_id=uid)
@@ -125,13 +131,13 @@ def main():
             candidate.get('Universe Source',''),signal.get('direction','LONG'),signal.get('setup_id',''),
             event_anchor_date=event_anchors.get(ticker))
     lifecycle=build_opportunity_lifecycle(shortlist,verified,signals,theses,news_payload,now,
-                                          confirmations=confirmations)
+                                          confirmations=confirmations,mandate=mandate)
     portfolio_context=portfolio_risk_context(positions,histories)
     factor_context=build_factor_risk_context(portfolio_context+[
         row for row in existing.get('positions',[]) if row.get('status') in {'PENDING_ENTRY','OPEN'}],histories)
-    book=update_shadow_book(lifecycle,signals,histories,existing,now,portfolio_context=portfolio_context,
-                            factor_context=factor_context)
-    report=build_lifecycle_report(lifecycle,book,now)
+    book=update_shadow_book(lifecycle,signals,histories,existing,now,nav=float(mandate['virtual_nav']),
+                            portfolio_context=portfolio_context,factor_context=factor_context,mandate=mandate)
+    report=build_lifecycle_report(lifecycle,book,now,mandate=mandate)
     report['upstream']={'opportunity_hunt_created_at':(hunt or {}).get('created_at'),
                         'signal_lab_created_at':(signal_record or {}).get('created_at'),
                         'news_created_at':(news_record or {}).get('created_at')}

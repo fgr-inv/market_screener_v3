@@ -48,8 +48,9 @@ def should_fetch_sec(now,manual=False):
     return bool(manual or now.hour in {7,16})
 
 
-def story_lookback_hours(now):
-    """Bridge the weekend on Monday's first scans without extra weekend jobs."""
+def story_lookback_hours(now,scan_mode='full'):
+    """Use the mandate window for the full scan and a small window for holdings."""
+    if news_scan_mode(scan_mode)=='full': return 14*24
     return 84 if now.weekday()==0 and now.hour<=8 else 36
 
 
@@ -119,7 +120,7 @@ def main():
     manual=os.getenv('GITHUB_EVENT_NAME','').lower()=='workflow_dispatch'
     stories,provider_status=collect_catalyst_stories(
         tickers,include_sec=bool(scan_mode=='full' and should_fetch_sec(now,manual)),
-        lookback_hours=story_lookback_hours(now))
+        lookback_hours=story_lookback_hours(now,scan_mode))
     classified=classify_catalyst_stories(stories,holdings,_thesis_map(uid))
     detected=[catalyst_story_event(row) for row in classified
               if row.get('category')!='GENERAL' and (int(row.get('severity') or 0)>=4 or row.get('portfolio'))]

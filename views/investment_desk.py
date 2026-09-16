@@ -303,13 +303,19 @@ st.caption('The lab cannot rewrite thresholds, promote a variant, place a trade 
 lifecycle_record=load_latest_lifecycle_report(uid)
 lifecycle=(lifecycle_record or {}).get('payload') or {}
 st.subheader('Opportunity Lifecycle & Shadow Book')
-st.caption('Evidence gate → technical trigger → risk capacity → next-session virtual fill → stop/target/time exit. No broker connection.')
+st.caption('Official catalyst → evidence gate → technical trigger → risk capacity → next-session virtual fill → stop/target/time exit. Internal simulation only; no external account connection.')
 if not lifecycle:
     st.info('The first post-close lifecycle run has not completed yet.')
 elif lifecycle.get('status')=='BLOCKED_UPSTREAM':
     st.warning('The lifecycle is waiting for: '+', '.join(lifecycle.get('missing') or [])+'. No virtual position was opened.')
 else:
     stages=lifecycle.get('stage_counts') or {}; book=lifecycle.get('book') or {}
+    mandate=lifecycle.get('policy') or book.get('mandate') or {}
+    if mandate:
+        st.info(f"Mandate: {mandate.get('mandate_id','N/D')} v{mandate.get('version','N/D')} · "
+                f"maximum {mandate.get('max_new_positions_per_week','N/D')} new virtual positions/week · "
+                f"official catalyst window {mandate.get('catalyst_window_days','N/D')} days · "
+                "broker and live execution disabled.")
     c1,c2,c3,c4=st.columns(4)
     c1.metric('Evidence verified',stages.get('EVIDENCE_VERIFIED',0))
     c2.metric('Entry ready',stages.get('ENTRY_READY',0))
@@ -321,7 +327,7 @@ else:
         columns=['ticker','sleeve','stage','Sector','Priority Score','Entry Score','RR','confirmation_score',
                  'weekly_bias','daily_bias','hourly_bias','market_regime','volatility_regime','relative_strength_spy_20d',
                  'relative_strength_sector_20d','breadth_state','breakout_quality','fundamental_state',
-                 'technical_state','primary_catalyst','material_catalysts','gate_reasons']
+                 'technical_state','primary_catalyst','material_catalysts','qualifying_catalyst_count','gate_reasons']
         st.dataframe(arrow_safe_frame(frame[[column for column in columns if column in frame]]),
                      width='stretch',hide_index=True)
     positions=book.get('positions') or []
@@ -346,7 +352,7 @@ else:
                          for key,value in (factor_risk.get('portfolio_factor_betas') or {}).items()]
             st.dataframe(pd.DataFrame(factor_rows),width='stretch',hide_index=True)
             st.caption(factor_risk.get('proxy_warning',''))
-    st.caption('Virtual NAV is a measurement convention, not your account balance. Cash is valid; weekly risk, position, sector, correlation, beta and factor-concentration limits can leave an otherwise valid idea unfilled.')
+    st.caption('Virtual NAV is a measurement convention, not your account balance. Cash is valid; weekly capacity, risk, position, sector, correlation, beta and factor-concentration limits can leave an otherwise valid idea unfilled.')
 
 paper_readiness=build_paper_readiness_report(shadow_decisions,shadow_outcomes,calibration,governance_records,storage_mode())
 st.subheader('Paper Readiness Gate')

@@ -110,8 +110,10 @@ def test_news_schedule_and_run_key_are_deterministic():
 
 def test_monday_first_scan_bridges_weekend():
     monday=pd.Timestamp('2026-09-07 07:05',tz='America/New_York').to_pydatetime()
-    assert story_lookback_hours(monday)==84
-    assert story_lookback_hours(monday.replace(hour=9))==36
+    assert story_lookback_hours(monday)==336
+    assert story_lookback_hours(monday.replace(hour=9))==336
+    assert story_lookback_hours(monday,'priority')==84
+    assert story_lookback_hours(monday.replace(hour=9),'priority')==36
 
 
 def test_syndicated_duplicate_prefers_primary_press_release():

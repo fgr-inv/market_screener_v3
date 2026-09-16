@@ -19,7 +19,7 @@ positions_tab,watch,thesis_tab=st.tabs(['Positions','Watchlist','Thesis Tracker'
 
 with positions_tab:
     if pos.empty:
-        st.info('No hay posiciones guardadas. Agregalas desde Portfolio Risk o Broker Import.')
+        st.info('No hay posiciones guardadas. Agregalas desde Portfolio Risk o Portfolio Import.')
     else:
         ticks=pos['ticker'].astype(str).str.upper().tolist()
         pm=download_prices(ticks,period='1y')

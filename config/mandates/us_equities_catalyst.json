@@ -1,0 +1,45 @@
+{
+  "mandate_id": "US_EQUITIES_CATALYST_DESK",
+  "version": "1.0",
+  "description": "Research and virtual-simulation mandate for long-only US equities with fresh official catalysts.",
+  "asset_class": "EQUITY",
+  "mode": "RESEARCH_AND_VIRTUAL_SIMULATION",
+  "broker_connections_allowed": false,
+  "live_execution_allowed": false,
+  "cash_is_valid": true,
+  "long_only": true,
+  "require_primary_catalyst": true,
+  "catalyst_window_days": 14,
+  "allowed_catalysts": [
+    "GUIDANCE_RAISED",
+    "GUIDANCE_REAFFIRMED",
+    "DEAL_SIGNED",
+    "DEAL_CLOSED"
+  ],
+  "thesis_invalidations": [
+    "GUIDANCE_CUT",
+    "DEAL_TERMINATED",
+    "MATERIAL_LEGAL_OR_REGULATORY_EVENT"
+  ],
+  "universe_max_age_days": 14,
+  "max_new_positions_per_week": 2,
+  "max_open_positions": 12,
+  "max_weekly_new_risk_pct": 2.1,
+  "max_sector_weight_pct": 30.0,
+  "virtual_nav": 50000.0,
+  "starter_fraction": 0.7,
+  "sleeves": {
+    "CORE": {
+      "risk_pct": 1.5,
+      "max_weight_pct": 8.0,
+      "slippage_bps": 5.0,
+      "commission_bps": 2.0
+    },
+    "SMID": {
+      "risk_pct": 0.75,
+      "max_weight_pct": 4.0,
+      "slippage_bps": 10.0,
+      "commission_bps": 2.0
+    }
+  }
+}
