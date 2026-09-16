@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-15T22:35:44.874075+00:00",
+  "generated_at": "2026-09-16T22:35:41.946246+00:00",
   "scan_limit": 2200,
   "equity_universe_rows": 1512,
   "live_universe_rows": 1512,
@@ -23,23 +23,23 @@
     ]
   },
   "cap_segment_rows": {
-    "Small Cap": 544,
+    "Small Cap": 546,
     "Large Cap": 501,
     "Mid Cap": 400,
     "Unknown": 6
   },
   "trend_phase_rows": {
-    "NO_QUALIFIED_SETUP": 1140,
-    "ESTABLISHED_LEADER": 146,
-    "BASE_NEAR_BREAKOUT": 69,
-    "BREAKOUT_CONFIRMED": 49,
-    "RECOVERY_WATCH": 25,
-    "EARLY_ACCELERATION": 22
+    "NO_QUALIFIED_SETUP": 1169,
+    "ESTABLISHED_LEADER": 157,
+    "BASE_NEAR_BREAKOUT": 63,
+    "EARLY_ACCELERATION": 23,
+    "BREAKOUT_CONFIRMED": 21,
+    "RECOVERY_WATCH": 20
   },
   "symbols_requested": 1541,
   "symbols_downloaded": 1541,
-  "symbols_scored": 1451,
-  "symbol_failures": 61,
+  "symbols_scored": 1453,
+  "symbol_failures": 59,
   "failure_examples": [
     [
       "FDXF",
@@ -48,10 +48,6 @@
     [
       "HONA",
       "INSUFFICIENT_HISTORY"
-    ],
-    [
-      "AAT",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
       "ADAM",
@@ -102,10 +98,6 @@
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ],
     [
-      "CTS",
-      "LIQUIDITY_LOW_DOLLAR_VOLUME"
-    ],
-    [
       "CWEN-A",
       "NO_PRICE_DATA"
     ],
@@ -139,6 +131,14 @@
     ],
     [
       "HTH",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "HTLD",
+      "LIQUIDITY_LOW_DOLLAR_VOLUME"
+    ],
+    [
+      "JBGS",
       "LIQUIDITY_LOW_DOLLAR_VOLUME"
     ]
   ]
