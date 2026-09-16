@@ -11,11 +11,13 @@ RECOVERABLE_TASKS = {
     'opportunity_lifecycle': {'module': 'scripts.run_opportunity_lifecycle', 'timeout_seconds': 1500},
     'skill_calibration': {'module': 'scripts.run_skill_calibration_review', 'timeout_seconds': 600},
     'continuous_improvement': {'module': 'scripts.run_continuous_improvement_review', 'timeout_seconds': 600},
+    'daily_market_analysis': {'module': 'scripts.run_daily_market_analysis', 'timeout_seconds': 900},
+    'weekly_market_analysis': {'module': 'scripts.run_weekly_market_analysis', 'timeout_seconds': 900},
 }
 
-ORDER = ('daily_cio', 'daily_snapshot', 'opportunity_hunt', 'signal_lab_daily', 'opportunity_lifecycle',
+ORDER = ('daily_cio', 'daily_snapshot', 'daily_market_analysis', 'opportunity_hunt', 'signal_lab_daily', 'opportunity_lifecycle',
          'shadow_validation',
-         'skill_calibration', 'continuous_improvement')
+         'skill_calibration', 'continuous_improvement', 'weekly_market_analysis')
 
 
 def recovery_plan(health_report, max_tasks=4):

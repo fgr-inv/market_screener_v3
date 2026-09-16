@@ -30,6 +30,8 @@ PROCESS_LABELS={
     'signal_lab_daily':'Laboratorio técnico diario',
     'signal_lab_weekly':'Revisión técnica semanal',
     'opportunity_lifecycle':'Pipeline y Shadow Book',
+    'daily_market_analysis':'Informe diario macro y sectorial',
+    'weekly_market_analysis':'Informe semanal macro y sectorial',
 }
 
 
@@ -169,11 +171,21 @@ def build_automation_health(user_id,now=None,current_failures=None):
                                        load_latest_desk_output(uid,'opportunity_lifecycle_report'),
                                        lifecycle_due,postclose_expected,local_now,
                                        'Evidencia, régimen/MTF, señal, capacidad de riesgo y fills virtuales; después del Signal Lab.'))
+    report_due=market_day and minutes>=21*60+10
+    checks.append(_check_business_date('daily_market_analysis',
+                                       load_latest_desk_output(uid,'market_analysis_daily'),
+                                       report_due,postclose_expected,local_now,
+                                       'Narrativa macro y de once sectores, verificada después del snapshot.'))
     signal_weekly_due=local_now.weekday()==5 and minutes>=12*60
     checks.append(_check_age('signal_lab_weekly',
                              load_latest_desk_output(uid,'automation_heartbeat_signal_lab_weekly'),
                              signal_weekly_due,7*24*60+180,local_now,
                              'Champion/challenger técnico sujeto a revisión humana.'))
+    weekly_report_due=local_now.weekday()==5 and minutes>=10*60
+    checks.append(_check_age('weekly_market_analysis',
+                             load_latest_desk_output(uid,'market_analysis_weekly'),
+                             weekly_report_due,7*24*60+180,local_now,
+                             'Informe semanal desarrollado con comparación macro-sectorial.'))
 
     failures={str(key):str(value) for key,value in (current_failures or {}).items() if value}
     for process,reason in failures.items():

@@ -25,6 +25,7 @@ if required_password and not st.session_state.get('_authenticated'):
 
 market=[
     st.Page('views/dashboard.py',title='Dashboard',icon='🏠',default=True),
+    st.Page('views/market_reports.py',title='Market Reports',icon='📝'),
     st.Page('views/macro_dashboard.py',title='Macro Dashboard',icon='🌍'),
     st.Page('views/sector_rotation.py',title='Sector Rotation',icon='🧭'),
     st.Page('views/cross_asset.py',title='Cross Asset',icon='🌐'),
