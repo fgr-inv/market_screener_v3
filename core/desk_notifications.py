@@ -303,6 +303,15 @@ def build_discord_cio_embed(brief,report_type='material'):
             market_detail=_market_detail(market)
             if market_detail: market_value+='\n'+market_detail
             fields.append(_field('🌎 Contexto de mercado',market_value))
+    changes=brief.get('changes_since_previous') or {}
+    if changes.get('items'):
+        change_lines=[]
+        for row in (changes.get('items') or [])[:6]:
+            subject=str(row.get('subject') or row.get('section') or 'Desk')
+            before=row.get('before'); after=row.get('after'); reason=str(row.get('reason') or '')
+            transition=f'{before or "nuevo"} → {after or "resuelto"}'
+            change_lines.append(f'**{subject}** · {transition}'+(f'\n↳ {_clip(reason,260)}' if reason else ''))
+        fields.append(_field('🆕 Cambios desde el informe anterior','\n'.join(change_lines)))
     decisions=_decision_text(brief.get('decisions_needed'))
     if decisions: fields.append(_field('📋 Decisiones para revisar',decisions))
     reasons=list(brief.get('material_reasons') or [])

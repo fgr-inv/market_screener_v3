@@ -30,6 +30,8 @@ def route_events(events):
     return {
         'ticker_agents':{ticker:sorted(agents) for ticker,agents in ticker_agents.items()},
         'global_agents':sorted(global_agents),
+        'handoff_order':['specialists','verification','portfolio_risk','cio'],
+        'activation_policy':'EVENT_MINIMUM_REQUIRED',
         'verification':bool(events),'cio':bool(events),'rationale':rationale,
         'shadow_mode':True,
     }
@@ -39,5 +41,7 @@ def full_review_plan(tickers):
     return {
         'ticker_agents':{str(t).upper():['technical','fundamental'] for t in tickers},
         'global_agents':['market','portfolio'],'verification':True,'cio':True,
+        'handoff_order':['specialists','verification','portfolio_risk','cio'],
+        'activation_policy':'FULL_REVIEW',
         'rationale':[{'reason':'full_manual_or_daily_review'}],'shadow_mode':True,
     }

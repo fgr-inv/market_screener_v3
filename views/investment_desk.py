@@ -143,6 +143,32 @@ if auto and auto.get('payload'):
     st.subheader('Latest automated CIO Brief')
     st.info(ab.get('headline','Automated desk output available'))
     st.caption(f"Background worker · {auto.get('created_at','N/D')} · SHADOW MODE")
+    changes=ap.get('changes_since_previous') or ab.get('changes_since_previous') or {}
+    if changes:
+        if changes.get('status')=='CHANGED':
+            st.warning('Cambios desde el informe anterior: '+str(changes.get('summary') or ''))
+            with st.expander('Ver cambios materiales',expanded=True):
+                st.dataframe(arrow_safe_frame(changes.get('items') or []),width='stretch',hide_index=True)
+        else:
+            st.caption('Cambios desde el informe anterior: no se detectaron cambios materiales.')
+    workflow=ap.get('workflow') or {}; packet=ap.get('research_packet') or {}
+    if workflow or packet:
+        counts=workflow.get('counts') or {}; freshness=packet.get('freshness') or {}
+        w1,w2,w3,w4=st.columns(4)
+        w1.metric('Workflow',workflow.get('status','N/D'))
+        w2.metric('Tareas completas',counts.get('COMPLETE',0))
+        w3.metric('Tareas parciales/rechazadas',int(counts.get('PARTIAL',0))+int(counts.get('REJECTED',0))+int(counts.get('STALE',0)))
+        w4.metric('Datos',freshness.get('status','N/D'))
+        with st.expander('Research Packet y handoffs',expanded=False):
+            st.caption(f"Run ID: {packet.get('run_id','N/D')} · Packet: {packet.get('packet_digest','N/D')} · versión {packet.get('packet_version','N/D')}")
+            st.dataframe(arrow_safe_frame(workflow.get('tasks') or []),width='stretch',hide_index=True)
+            handoffs=ap.get('handoffs') or []
+            if handoffs:
+                handoff_rows=[{'Agent':row.get('agent'),'Subject':row.get('subject'),'Status':row.get('status'),
+                               'State':row.get('state'),'Confidence':row.get('confidence'),
+                               'Verification':row.get('verification_status'),'Next owner':row.get('next_owner')}
+                              for row in handoffs]
+                st.dataframe(arrow_safe_frame(handoff_rows),width='stretch',hide_index=True)
     c1,c2,c3=st.columns(3)
     market_section=ab.get('market_regime') or {}
     risk_section=ab.get('principal_risk') or {}
@@ -173,6 +199,19 @@ if auto and auto.get('payload'):
     if news_items:
         with st.expander('News and catalyst conclusions',expanded=True):
             st.dataframe(arrow_safe_frame(news_items),width='stretch',hide_index=True)
+
+memory_record=load_latest_desk_output(uid,'thesis_memory') or {}
+memory_payload=memory_record.get('payload') or {}
+if memory_payload.get('assets'):
+    st.subheader('Persistent Thesis Memory')
+    st.caption('Memoria versionada por activo. Registra cambios y contradicciones; nunca modifica la tesis del usuario automáticamente.')
+    memory_rows=[]
+    for ticker,row in sorted((memory_payload.get('assets') or {}).items()):
+        memory_rows.append({'Ticker':ticker,'Version':row.get('thesis_version'),'Status':row.get('status'),
+                            'Last State':row.get('last_state'),'Verification':row.get('last_verification_status'),
+                            'Confidence':row.get('last_confidence'),'Last Reviewed':row.get('last_reviewed_at'),
+                            'Open Contradictions':len(row.get('open_contradictions') or [])})
+    st.dataframe(arrow_safe_frame(memory_rows),width='stretch',hide_index=True)
 
 shadow_decisions=load_shadow_decisions(uid)
 shadow_outcomes=load_shadow_outcomes(uid)

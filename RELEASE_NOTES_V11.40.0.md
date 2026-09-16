@@ -17,3 +17,12 @@ The system remains research-only, broker-free and in Shadow Mode.
 - Saved asset alerts now explain market structure, score context, participation, risk, portfolio context, confirmation and invalidation in narrative form.
 - Material and daily CIO reports open with an executive interpretation and connect confidence, verification and evidence instead of presenting isolated labels or scores.
 - The macro and sector report remains the writing standard: evidence first, explicit uncertainty, and conditions under which the reading improves or deteriorates.
+
+## Persistent agent operating layer
+
+- Every desk run now creates a versioned Research Packet manifest so specialists share the same frozen data, freshness state and source inventory.
+- Agent handoffs and workflow states are persisted with explicit partial, stale, rejected and failed outcomes; missing evidence cannot silently become a complete result.
+- Thesis memory is versioned per asset and records prior conclusions, contradictions and sources without modifying the user's thesis.
+- CIO briefs compare themselves with the previous comparable run and highlight only material changes.
+- Investment Desk exposes workflow tasks, handoffs, packet identity and persistent thesis memory for human review.
+- Agent permissions and reporting lines are explicit; every role remains research-only, non-publishing and non-executing.
