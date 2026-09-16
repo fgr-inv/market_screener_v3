@@ -192,11 +192,38 @@ def _alert_scenario(rule,context):
     return f'**Confirmación:** {confirmation}\n**Invalidación:** {invalidation}'
 
 
+def _developed_rule_analysis(ticker,rule,context):
+    """Turn the frozen alert evidence into an explanatory, non-prescriptive narrative."""
+    label=RULE_REPORT_LABELS.get(rule,rule.replace('_',' ').title())
+    trend=str(context.get('trend') or 'no confirmada').lower()
+    setup=str(context.get('setup') or 'sin setup clasificado').lower()
+    price=context.get('price'); entry=context.get('entry_score'); trend_score=context.get('trend_score')
+    first=(f'**{ticker} activó la condición “{label}”.** Esto confirma que el umbral configurado fue alcanzado, '
+           'pero no constituye por sí solo una tesis ni una señal de compra. ')
+    if price is not None: first+=f'El último precio observado es **${float(price):,.2f}**. '
+    first+=f'La estructura se clasifica como **{trend}**, con un patrón **{setup}**.'
+    scores=[]
+    if entry is not None: scores.append(f'Entry Score {float(entry):.0f}/100')
+    if trend_score is not None: scores.append(f'Trend Score {float(trend_score):.0f}/100')
+    if context.get('technical_score') is not None: scores.append(f"score técnico {float(context['technical_score']):.0f}/100")
+    second=('La lectura cuantitativa muestra '+', '.join(scores)+'. ' if scores else
+            'La cobertura cuantitativa es insuficiente para comparar calidad de entrada y tendencia. ')
+    rv=context.get('relative_volume'); rs=context.get('relative_strength_63d_pct')
+    if rv is not None: second+=f'El volumen relativo es **{float(rv):.2f}x**, '
+    else: second+='No hay confirmación de volumen disponible, '
+    if rs is not None: second+=f'y la fuerza frente a SPY a 63 días es **{float(rs):+.1f}%**. '
+    else: second+='y la fuerza relativa no fue medida. '
+    second+=('La combinación importa más que el score aislado: una activación con participación débil o '
+             'estructura deteriorándose tiene menor calidad que otra respaldada por tendencia y amplitud.')
+    return first+'\n\n'+second
+
+
 def build_discord_rule_alert(alert,message,trigger_reason='EDGE',now=None,context=None):
     """Build a professional saved-alert embed without interpreting it as a trade signal."""
     ticker=str(alert.get('ticker') or 'ACTIVO').upper(); rule=str(alert.get('rule_type') or 'ALERTA')
     reason={'EDGE':'Nueva activación','COOLDOWN':'Repetición después del cooldown'}.get(str(trigger_reason),str(trigger_reason))
-    fields=[{'name':'Condición','value':_report_clip(RULE_REPORT_LABELS.get(rule,rule.replace('_',' ').title()),1024),'inline':True},
+    fields=[{'name':'📚 Análisis desarrollado','value':_report_clip(_developed_rule_analysis(ticker,rule,dict(context or {})),1024),'inline':False},
+            {'name':'Condición','value':_report_clip(RULE_REPORT_LABELS.get(rule,rule.replace('_',' ').title()),1024),'inline':True},
             {'name':'Umbral configurado','value':_report_clip(alert.get('threshold','N/D'),1024),'inline':True},
             {'name':'Tipo de aviso','value':_report_clip(reason,1024),'inline':True}]
     context=dict(context or {})
@@ -210,13 +237,17 @@ def build_discord_rule_alert(alert,message,trigger_reason='EDGE',now=None,contex
     if portfolio_market: fields.append({'name':'🧩 Cartera, mercado y universo','value':_report_clip(portfolio_market,1024),'inline':False})
     note=str(alert.get('note') or '').strip()
     if note: fields.append({'name':'Tu nota','value':_report_clip(note,1024),'inline':False})
-    if context: fields.append({'name':'🧭 Escenario y validación','value':_report_clip(_alert_scenario(rule,context),1024),'inline':False})
-    fields.append({'name':'➡️ Próximo paso','value':'Abrir el activo en Investment Desk, contrastar la evidencia y revisar el efecto sobre la cartera antes de decidir.','inline':False})
+    fields.append({'name':'🧭 Escenario y validación','value':_report_clip(_alert_scenario(rule,context),1024),'inline':False})
+    fields.append({'name':'📌 Conclusión para el desk','value':_report_clip(
+        f'Revisar si **{ticker}** conserva coherencia entre precio, tendencia, participación y riesgo de cartera. '
+        'Si la evidencia no converge, mantener el activo en observación; cash continúa siendo una posición válida.',1024),'inline':False})
     stamp=now if isinstance(now,datetime) else datetime.now(timezone.utc)
     if stamp.tzinfo is None: stamp=stamp.replace(tzinfo=timezone.utc)
     color=0x2ECC71 if rule in {'PRICE_ABOVE','ENTRY_SCORE_ABOVE','RR_ABOVE'} else 0xF39C12 if rule.startswith('EMA') else 0x3498DB
-    embed={'author':{'name':'Market Screener Pro · Saved Alerts'},'title':_report_clip(f'🔔 {ticker} · condición alcanzada',256),
-           'description':_report_clip(message,1400),'color':color,'fields':fields[:25],
+    embed={'author':{'name':'Market Screener Pro · Saved Alerts'},'title':_report_clip(f'🔔 {ticker} · análisis de condición',256),
+           'description':_report_clip(
+               f'{message}. La alerta abre una revisión contextual: el nivel alcanzado debe contrastarse con '
+               'tendencia, participación, riesgo y cartera antes de cambiar una decisión.',1400),'color':color,'fields':fields[:25],
            'timestamp':stamp.astimezone(timezone.utc).isoformat(),
            'footer':{'text':'SHADOW MODE · Alerta informativa · Ninguna orden fue enviada'}}
     used=len(embed['author']['name'])+len(embed['title'])+len(embed['description'])+len(embed['footer']['text'])

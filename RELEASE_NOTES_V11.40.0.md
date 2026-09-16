@@ -11,3 +11,9 @@
 - The fleet registry explicitly assigns ownership while keeping `may_execute=False` for every agent.
 
 The system remains research-only, broker-free and in Shadow Mode.
+
+## Developed notification analysis
+
+- Saved asset alerts now explain market structure, score context, participation, risk, portfolio context, confirmation and invalidation in narrative form.
+- Material and daily CIO reports open with an executive interpretation and connect confidence, verification and evidence instead of presenting isolated labels or scores.
+- The macro and sector report remains the writing standard: evidence first, explicit uncertainty, and conditions under which the reading improves or deteriorates.

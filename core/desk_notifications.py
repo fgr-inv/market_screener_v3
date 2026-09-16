@@ -155,12 +155,35 @@ def _professional_analysis_text(brief,max_items=3):
         ticker=str(row.get('subject') or 'MERCADO').upper(); agent=_clip(row.get('agent'),45)
         verification=str(row.get('verification_status') or 'NOT_CHECKED').upper()
         verification=VERIFICATION_LABELS.get(verification,verification.replace('_',' ').title())
-        lines.append(f"**{ticker} · {agent}** — {_state(row.get('state'))} · confianza {_pct(row.get('confidence'))} · {verification}")
+        lines.append(f"**{ticker}** presenta una lectura de **{_state(row.get('state')).lower()}**, elaborada por {agent or 'el desk'}, "
+                     f"con confianza {_pct(row.get('confidence'))} y estado de verificación **{verification.lower()}**. "
+                     'La confianza expresa consistencia de la evidencia disponible; no reemplaza la confirmación de la fuente ni define una operación.')
         evidence=_evidence_text(row)
-        if evidence: lines.append('↳ Evidencia: '+evidence)
+        if evidence: lines.append('La evidencia que sostiene esta lectura es: '+evidence+'.')
         contradictions=row.get('contradicting_evidence') or []
-        if contradictions: lines.append('↳ ⚠️ Contraste: '+_clip(contradictions[0],240))
-    return '\n'.join(lines)
+        if contradictions:
+            lines.append('El principal contraste pendiente es '+_clip(contradictions[0],300)+
+                         '; mientras no se resuelva, conviene tratar la conclusión como provisional.')
+    return '\n\n'.join(lines)
+
+
+def _executive_narrative(brief,daily=False):
+    events=_material_events(brief); market=brief.get('market_regime') or {}; risk=brief.get('principal_risk') or {}
+    if daily:
+        return _clip(
+            f"El desk inicia la sesión con un régimen de mercado **{_state(market.get('state')).lower()}** y un riesgo de cartera "
+            f"**{_state(risk.get('state')).lower()}**. {market.get('summary') or ''} "
+            'La prioridad es distinguir fortaleza amplia de movimientos concentrados y exigir confirmación técnica, fundamental y de cartera. '
+            'Cash continúa siendo una posición válida cuando la evidencia no está alineada.',1400)
+    if events:
+        story=((events[0].get('metrics') or {}).get('story') or {}); ticker=str(events[0].get('ticker') or 'el activo').upper()
+        direction=DIRECTION_LABELS.get(str(story.get('direction') or 'NEUTRAL').upper(),'neutral').lower()
+        return _clip(
+            f'**{ticker} requiere una revisión desarrollada** después de un evento de dirección **{direction}** y severidad '
+            f'**{int(events[0].get("severity") or story.get("severity") or 0)}/5**. '
+            'El hecho modifica la evidencia disponible, pero su impacto sobre la tesis depende de la fuente original, la persistencia del dato, '
+            'la reacción del precio y la exposición de cartera. No se deriva una orden automática.',1400)
+    return _clip(_headline(brief,daily),1400)
 
 
 def _portfolio_detail(risk):
@@ -293,7 +316,7 @@ def build_discord_cio_embed(brief,report_type='material'):
     elif len(events)==1: title=f'🚨 {first_ticker} · {first_story.get("category") or "evento material"}'
     else: title=f'🚨 Alerta material del Investment Desk ({max(len(events),1)})'
     embed={'author':{'name':'Market Screener Pro · Investment Desk'},'title':_clip(title,256),
-           'description':_clip(_headline(brief,daily),1200),'color':COLORS[_tone(brief)],
+           'description':_executive_narrative(brief,daily),'color':COLORS[_tone(brief)],
            'fields':fields[:25],'timestamp':datetime.now(timezone.utc).isoformat(),
            'footer':{'text':f'SHADOW MODE · Investigación solamente · Informe v{REPORT_VERSION} · Ninguna orden fue enviada'}}
     source_url=_safe_url(first_story.get('url'))
