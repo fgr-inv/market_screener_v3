@@ -162,7 +162,7 @@ def _professional_analysis_text(brief,max_items=3):
         if evidence: lines.append('La evidencia que sostiene esta lectura es: '+evidence+'.')
         contradictions=row.get('contradicting_evidence') or []
         if contradictions:
-            lines.append('El principal contraste pendiente es '+_clip(contradictions[0],300)+
+            lines.append('**Contraste pendiente:** '+_clip(contradictions[0],300)+
                          '; mientras no se resuelva, conviene tratar la conclusión como provisional.')
     return '\n\n'.join(lines)
 
