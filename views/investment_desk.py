@@ -30,6 +30,21 @@ section_note('Research only. A broad daily hunt discovers candidates; weekly, da
 user=current_user(); uid=user['user_id']
 improvement_policy=load_active_improvement_policy(uid)
 
+journal_review=load_latest_desk_output(uid,'journal_agent_review') or {}
+journal_payload=journal_review.get('payload') or {}
+if journal_payload:
+    st.subheader('Journal Agent · Process Review')
+    c1,c2,c3=st.columns(3)
+    c1.metric('Estado',journal_payload.get('status','N/D'))
+    c2.metric('Cohortes revisadas',len(journal_payload.get('metrics') or []))
+    c3.metric('Patrones recurrentes',len(journal_payload.get('recurring_patterns') or []))
+    st.caption(journal_payload.get('summary',''))
+    if journal_payload.get('recurring_patterns'):
+        st.warning('Se detectaron patrones que requieren revisión humana; ninguna regla fue modificada.')
+        st.dataframe(arrow_safe_frame(journal_payload['recurring_patterns']),width='stretch',hide_index=True)
+    with st.expander('Métricas por agente'):
+        st.dataframe(arrow_safe_frame(journal_payload.get('metrics') or []),width='stretch',hide_index=True)
+
 hunt=load_latest_desk_output(uid,'daily_opportunity_hunt')
 if hunt and hunt.get('payload'):
     hp=hunt['payload']; discovery=hp.get('discovery') or {}

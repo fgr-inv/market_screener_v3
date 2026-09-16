@@ -120,7 +120,7 @@ def test_workflow_ui_watchdog_and_runtime_have_no_broker_path():
     config=Path('core/config.py').read_text(encoding='utf-8')
     assert 'run_opportunity_lifecycle' in workflow
     assert 'Opportunity Lifecycle & Shadow Book' in ui and 'opportunity_lifecycle' in health
-    assert 'APP_VERSION = "11.39.9"' in config
+    assert 'APP_VERSION = "11.40.0"' in config
     runtime=(workflow+script+module).lower()
     assert all(term not in runtime for term in ('place_order','submit_order','tradingclient','alpaca'))
     assert 'no_execution' in runtime and 'shadow_mode' in runtime

@@ -3,11 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, timezone
 import json
+import threading
 import pandas as pd
 from core.production_storage import cloud_available,execute_sql,query_sql
 
 ROOT=Path(__file__).resolve().parents[1]
 AUDIT_DIR=ROOT/'data'/'agent_audit'; AUDIT_DIR.mkdir(parents=True,exist_ok=True)
+_AUDIT_LOCK=threading.Lock()
 
 def _safe_user(user_id):
     return ''.join(c if c.isalnum() or c in '-_.' else '_' for c in str(user_id or 'local-user'))
@@ -16,12 +18,16 @@ def audit_path(user_id): return AUDIT_DIR/f'{_safe_user(user_id)}.jsonl'
 
 def append_agent_audit(user_id, event_type, payload):
     rec={'ts':datetime.now(timezone.utc).isoformat(),'user_id':str(user_id),'event_type':str(event_type),'payload':payload}
-    with audit_path(user_id).open('a',encoding='utf-8') as f: f.write(json.dumps(rec,ensure_ascii=False,default=str)+'\n')
+    with _AUDIT_LOCK:
+        with audit_path(user_id).open('a',encoding='utf-8') as f: f.write(json.dumps(rec,ensure_ascii=False,default=str)+'\n')
+    persistence={'status':'LOCAL_ONLY','message':'DATABASE_URL not configured'}
     if cloud_available():
-        execute_sql('''INSERT INTO user_agent_audit(user_id,ts,event_type,payload_json)
+        ok,message=execute_sql('''INSERT INTO user_agent_audit(user_id,ts,event_type,payload_json)
                        VALUES (:uid,:ts,:event_type,:payload)''',
                     {'uid':rec['user_id'],'ts':rec['ts'],'event_type':rec['event_type'],
                      'payload':json.dumps(payload,ensure_ascii=False,default=str)})
+        persistence={'status':'CURRENT' if ok else 'FAILED','message':message}
+    rec['persistence']=persistence
     return rec
 
 def load_agent_audit(user_id, limit=200):

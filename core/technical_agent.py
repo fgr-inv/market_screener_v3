@@ -15,8 +15,15 @@ def analyze_technical(ticker, history, source='Yahoo Finance daily bars', observ
         return AgentResult('Technical Signal',AGENT_VERSION,SKILL,SKILL_VERSION,ticker,SignalState.NO_SETUP.value,0.0,
             'Insufficient current price history; no setup can be asserted.',
             [Evidence('Daily price history',None,source,observed_at or '',DataStatus.UNAVAILABLE,'Minimum 30 bars required.')])
-    snap=professional_technical_snapshot(history)
-    score=int(snap.get('TA_Quality_Score',50)); structure=snap.get('Market_Structure','Unclear'); weekly=snap.get('Weekly_State','N/D')
+    try:
+        snap=professional_technical_snapshot(history)
+        raw_score=_num(snap.get('TA_Quality_Score')); score=int(raw_score if raw_score is not None else 50)
+    except Exception as exc:
+        return AgentResult('Technical Signal',AGENT_VERSION,SKILL,SKILL_VERSION,ticker,SignalState.NO_SETUP.value,0.0,
+            'Technical calculations failed; no setup can be asserted.',
+            [Evidence('Technical snapshot',None,source,observed_at or str(history.index[-1]),DataStatus.FAILED,type(exc).__name__)],
+            metadata={'approval_boundary':'Analysis only. Never place or modify an order.','calculation_error':type(exc).__name__})
+    structure=snap.get('Market_Structure','Unclear'); weekly=snap.get('Weekly_State','N/D')
     if structure=='HH / HL' and weekly=='Bullish' and score>=65: state=SignalState.SETUP
     elif structure=='LH / LL' and weekly=='Bearish' and score<=40: state=SignalState.BROKEN_SETUP
     elif score>=55 or structure=='HH / HL': state=SignalState.WATCH
@@ -27,8 +34,10 @@ def analyze_technical(ticker, history, source='Yahoo Finance daily bars', observ
         Evidence('Technical quality score',score,source,last_date,DataStatus.CURRENT),
         Evidence('Market structure',structure,source,last_date,DataStatus.CURRENT),
         Evidence('Weekly state',weekly,source,last_date,DataStatus.CURRENT if weekly!='N/D' else DataStatus.NOT_CHECKED),
-        Evidence('Relative volume 20d',_num(snap.get('Relative_Volume_20d')),source,last_date,DataStatus.CURRENT),
-        Evidence('Distance from anchored VWAP %',_num(snap.get('Dist_AVWAP_%')),source,last_date,DataStatus.CURRENT),
+        Evidence('Relative volume 20d',_num(snap.get('Relative_Volume_20d')),source,last_date,
+                 DataStatus.CURRENT if _num(snap.get('Relative_Volume_20d')) is not None else DataStatus.NOT_CHECKED),
+        Evidence('Distance from anchored VWAP %',_num(snap.get('Dist_AVWAP_%')),source,last_date,
+                 DataStatus.CURRENT if _num(snap.get('Dist_AVWAP_%')) is not None else DataStatus.NOT_CHECKED),
     ]
     contradictions=[]
     if structure=='HH / HL' and weekly=='Bearish': contradictions.append('Daily structure is constructive while weekly confirmation is bearish.')
@@ -36,4 +45,5 @@ def analyze_technical(ticker, history, source='Yahoo Finance daily bars', observ
     alt='The apparent setup may be a short-lived price move unless participation and subsequent closes confirm it.'
     return AgentResult('Technical Signal',AGENT_VERSION,SKILL,SKILL_VERSION,ticker,state.value,round(conf,2),
         f'{ticker}: {state.value} · structure {structure} · weekly {weekly} · technical quality {score}/100.',ev,contradictions,alt,
-        metadata={'snapshot':snap,'approval_boundary':'Analysis only. Never place or modify an order.'})
+        metadata={'snapshot':snap,'evidence_max_age_hours':96,
+                  'approval_boundary':'Analysis only. Never place or modify an order.'})

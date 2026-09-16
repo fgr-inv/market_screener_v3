@@ -12,6 +12,7 @@ import math
 import re
 
 import pandas as pd
+from core.grounded_narrator import apply_grounded_narrator
 
 
 REPORT_VERSION='1.0'
@@ -232,7 +233,7 @@ def _scenarios(packet):
     }
 
 
-def build_market_report(packet):
+def build_market_report(packet,narrator=None):
     sectors=[_sector_analysis(row,packet['frequency']) for row in packet.get('sectors') or [] if row.get('constituents')]
     report={'schema_version':REPORT_VERSION,'report_type':packet['frequency'],'generated_at':packet['generated_at'],
             'snapshot_generated_at':packet['snapshot_generated_at'],
@@ -244,6 +245,7 @@ def build_market_report(packet):
             'evidence_packet':packet,'limitations':[],
             'agent':{'name':'Market Strategist','version':REPORT_VERSION,'mode':'DETERMINISTIC_GROUNDED_NARRATIVE'},
             'shadow_mode':True,'no_execution':True}
+    report=apply_grounded_narrator(report,packet,narrator=narrator)
     return verify_market_report(report,packet)
 
 

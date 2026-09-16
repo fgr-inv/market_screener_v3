@@ -32,6 +32,7 @@ PROCESS_LABELS={
     'opportunity_lifecycle':'Pipeline y Shadow Book',
     'daily_market_analysis':'Informe diario macro y sectorial',
     'weekly_market_analysis':'Informe semanal macro y sectorial',
+    'journal_agent':'Revisión semanal del Journal Agent',
 }
 
 
@@ -186,6 +187,10 @@ def build_automation_health(user_id,now=None,current_failures=None):
                              load_latest_desk_output(uid,'market_analysis_weekly'),
                              weekly_report_due,7*24*60+180,local_now,
                              'Informe semanal desarrollado con comparación macro-sectorial.'))
+    journal_due=local_now.weekday()==5 and minutes>=13*60+30
+    checks.append(_check_age('journal_agent',load_latest_desk_output(uid,'journal_agent_review'),
+                             journal_due,7*24*60+180,local_now,
+                             'Métricas por agente y patrones repetidos; no modifica reglas automáticamente.'))
 
     failures={str(key):str(value) for key,value in (current_failures or {}).items() if value}
     for process,reason in failures.items():

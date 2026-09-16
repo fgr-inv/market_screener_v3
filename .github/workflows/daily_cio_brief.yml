@@ -19,12 +19,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
+      - uses: ./.github/actions/setup-python
       - name: Require persistent database
         run: test -n "${DATABASE_URL}" || (echo "DATABASE_URL is required" && exit 1)
         env:

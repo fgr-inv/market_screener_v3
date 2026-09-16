@@ -1,4 +1,4 @@
-# Market Screener Pro V11.39.9 — Automated Research Terminal
+# Market Screener Pro V11.40.0 — Automated Research Terminal
 
 > **Market Strategist:** genera informes diarios y semanales desarrollados sobre macro y los once sectores. Cada informe parte de un snapshot congelado, pasa por un verificador independiente y se publica sin acceso a brokers ni ejecución. Ver `docs/MACRO_SECTOR_REPORTS.md`.
 

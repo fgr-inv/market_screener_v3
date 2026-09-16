@@ -12,20 +12,23 @@ RESEARCH_FILES=(
     ROOT/'core'/'regime_multitimeframe.py',ROOT/'core'/'factor_risk.py',
     ROOT/'scripts'/'run_opportunity_lifecycle.py',
 )
+BOUNDARY_FILES=tuple(path for folder in ('core','scripts') for path in (ROOT/folder).glob('*.py')
+                     if path.name!='run_quality_gate.py')
 
 
 def main():
     failures=[]
     version=(ROOT/'core'/'config.py').read_text(encoding='utf-8')
-    if 'APP_VERSION = "11.39.9"' not in version: failures.append('APP_VERSION is not 11.39.9')
+    if 'APP_VERSION = "11.40.0"' not in version: failures.append('APP_VERSION is not 11.40.0')
     combined=''
     for path in RESEARCH_FILES:
         source=path.read_text(encoding='utf-8'); combined+=source.lower()+'\n'
         try: ast.parse(source,filename=str(path))
         except SyntaxError as exc: failures.append(f'{path.name}: {exc}')
         if re.search(r'\.shift\(\s*-\d',source): failures.append(f'{path.name}: future shift detected')
+    boundary='\n'.join(path.read_text(encoding='utf-8').lower() for path in BOUNDARY_FILES)
     for forbidden in ('place_order','submit_order','tradingclient','alpaca_trade_api'):
-        if forbidden in combined: failures.append(f'broker/order boundary violated: {forbidden}')
+        if forbidden in boundary: failures.append(f'broker/order boundary violated: {forbidden}')
     workflows=list((ROOT/'.github'/'workflows').glob('*.yml'))
     for path in workflows:
         text=path.read_text(encoding='utf-8')
@@ -33,7 +36,7 @@ def main():
             failures.append(f'{path.name}: malformed workflow shell')
     if failures:
         print('QUALITY GATE FAILED\n- '+'\n- '.join(failures)); return 1
-    print(f'Quality gate passed: {len(RESEARCH_FILES)} research modules, {len(workflows)} workflows, Shadow Mode boundary intact.')
+    print(f'Quality gate passed: {len(BOUNDARY_FILES)} Python modules, {len(workflows)} workflows, Shadow Mode boundary intact.')
     return 0
 
 

@@ -1,0 +1,27 @@
+name: Weekly Journal Agent review
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 17 * * 6'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-journal-agent-review
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-python
+      - name: Review agent outcomes and recurring mistakes
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEV_USER_ID: ${{ secrets.DEV_USER_ID }}
+        run: python -m scripts.run_weekly_journal_review

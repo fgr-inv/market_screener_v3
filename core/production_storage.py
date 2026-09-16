@@ -259,6 +259,15 @@ def ensure_production_schema():
             )''',
             '''CREATE INDEX IF NOT EXISTS idx_user_agent_outputs_latest
                ON user_agent_outputs(user_id,output_type,created_at DESC)''',
+            '''CREATE TABLE IF NOT EXISTS shared_agent_snapshots (
+                dataset TEXT NOT NULL,
+                ticker TEXT NOT NULL,
+                refreshed_at TIMESTAMP NOT NULL,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY (dataset,ticker)
+            )''',
+            '''CREATE INDEX IF NOT EXISTS idx_shared_agent_snapshots_time
+               ON shared_agent_snapshots(dataset,refreshed_at DESC)''',
             '''CREATE TABLE IF NOT EXISTS user_agent_audit (
                 id BIGSERIAL PRIMARY KEY,
                 user_id TEXT NOT NULL,

@@ -9,8 +9,10 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 import json, math, os, tempfile
+import pandas as pd
 
 from core.cache_policy import FUNDAMENTALS_TTL, VALUATION_TTL
+from core.production_storage import cloud_available,ensure_production_schema,execute_sql,query_sql
 
 ROOT = Path(os.getenv('AGENT_SNAPSHOT_DIR', 'data/agent_snapshots'))
 FUND_DIR = ROOT / 'fundamentals'
@@ -42,6 +44,20 @@ def snapshot_path(ticker: str, dataset='fundamentals') -> Path:
     return base / f'{ticker}.json'
 
 def read_snapshot(ticker: str, dataset='fundamentals'):
+    ticker=str(ticker).upper().strip()
+    if cloud_available():
+        ensure_production_schema()
+        frame=query_sql('''SELECT refreshed_at,payload_json FROM shared_agent_snapshots
+                           WHERE dataset=:dataset AND ticker=:ticker LIMIT 1''',
+                        {'dataset':dataset,'ticker':ticker})
+        if not frame.empty:
+            try:
+                payload=json.loads(frame.iloc[0]['payload_json']); ts=pd.Timestamp(frame.iloc[0]['refreshed_at'])
+                if ts.tzinfo is None: ts=ts.tz_localize('UTC')
+                payload['_age_seconds']=max(0.0,(pd.Timestamp.now(tz='UTC')-ts.tz_convert('UTC')).total_seconds())
+                payload['_persistence']='POSTGRES'
+                return payload
+            except Exception: pass
     p=snapshot_path(ticker,dataset)
     if not p.exists(): return None
     try:
@@ -75,6 +91,15 @@ def write_snapshot(ticker: str, data: dict, dataset='fundamentals', provider_sta
         os.replace(tmp,p)
     finally:
         if os.path.exists(tmp): os.unlink(tmp)
+    payload['_persistence']='LOCAL'
+    if cloud_available():
+        ensure_production_schema()
+        ok,_=execute_sql('''INSERT INTO shared_agent_snapshots(dataset,ticker,refreshed_at,payload_json)
+            VALUES (:dataset,:ticker,:refreshed_at,:payload)
+            ON CONFLICT (dataset,ticker) DO UPDATE SET refreshed_at=EXCLUDED.refreshed_at,payload_json=EXCLUDED.payload_json''',
+            {'dataset':dataset,'ticker':str(ticker).upper(),'refreshed_at':payload['refreshed_at'],
+             'payload':json.dumps(payload,ensure_ascii=False,default=str)})
+        if ok: payload['_persistence']='POSTGRES'
     return payload
 
 def shared_fundamental_snapshot(ticker: str, loader, force=False):

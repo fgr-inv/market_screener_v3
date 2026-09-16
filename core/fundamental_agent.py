@@ -30,7 +30,7 @@ def analyze_fundamental(ticker, force_refresh=False):
         for k,v in overlay.items():
             if k not in {'Valuation_Market_Overlay_Available','Valuation_Market_Overlay_Error'} and v is not None: f[k]=v
     except Exception: overlay={}
-    score=_num(f.get('Fundamental_Score')) or 50
+    raw_score=_num(f.get('Fundamental_Score')); score=50 if raw_score is None else raw_score
     rg=_num(f.get('Revenue_Growth')); eg=_num(f.get('Earnings_Growth')); pm=_num(f.get('Profit_Margin'))
     roe=_num(f.get('ROE')); fcf=_num(f.get('FCF')); pe=_num(f.get('Forward_PE'))
     available=bool(f.get('Fundamentals_Available'))
@@ -58,4 +58,5 @@ def analyze_fundamental(ticker, force_refresh=False):
         metadata={'source':src,'provider_status':f.get('Fundamentals_Provider_Status',{}),
                   'data_budget':budget.to_dict(),'provider_refresh_performed':refreshed,
                   'valuation_overlay_available':bool(overlay.get('Valuation_Market_Overlay_Available')),
+                  'evidence_max_age_hours':max(24,float(budget.ttl_seconds)/3600),
                   'approval_boundary':'Research only. Never place or modify an order.'})

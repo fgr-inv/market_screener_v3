@@ -78,6 +78,6 @@ def test_release_contract_exposes_mtf_without_execution_path():
     config=Path('core/config.py').read_text(encoding='utf-8')
     assert 'download_intraday_prices' in script and 'latest_breadth' in script
     assert 'weekly_bias' in ui and 'relative_strength_spy_20d' in ui
-    assert 'APP_VERSION = "11.39.9"' in config
+    assert 'APP_VERSION = "11.40.0"' in config
     runtime=(module+script).lower()
     assert all(term not in runtime for term in ('place_order','submit_order','tradingclient','alpaca'))
