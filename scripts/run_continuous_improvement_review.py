@@ -16,6 +16,7 @@ from core.continuous_improvement import (
 )
 from core.production_storage import storage_mode
 from core.shadow_validation import load_shadow_decisions, load_shadow_outcomes
+from core.agent_playbooks import load_active_playbooks
 
 
 def main():
@@ -36,7 +37,9 @@ def main():
     decisions = load_shadow_decisions(uid)
     outcomes = load_shadow_outcomes(uid)
     active = load_active_improvement_policy(uid)
-    report = build_continuous_improvement_review(decisions, outcomes, active, generated_at=now)
+    playbooks = load_active_playbooks(uid)
+    report = build_continuous_improvement_review(decisions, outcomes, active, generated_at=now,
+                                                 active_playbooks=playbooks)
     persistence = save_improvement_review(uid, review_key, report)
     notification = notify_improvement_review(uid, report, review_key)
     append_agent_audit(uid, 'continuous_improvement_review', {

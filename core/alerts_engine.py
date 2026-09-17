@@ -111,63 +111,75 @@ def _fmt_number(value,decimals=1,suffix=''):
 
 def _technical_reading(context):
     bits=[]
-    if context.get('price') is not None: bits.append(f"Precio **${float(context['price']):,.2f}**")
-    if context.get('trend'): bits.append(f"Tendencia **{_report_clip(context['trend'],45)}**")
-    if context.get('setup'): bits.append(f"Setup **{_report_clip(context['setup'],55)}**")
+    price=(f"El último precio observado es **${float(context['price']):,.2f}**. "
+           if context.get('price') is not None else '')
+    trend=_report_clip(context.get('trend') or 'no clasificada',45)
+    setup=_report_clip(context.get('setup') or 'sin patrón confirmado',55)
+    bits.append(f'{price}La tendencia se clasifica como **{trend}** y el patrón técnico como **{setup}**. '
+                'La condición activada gana valor únicamente si ambos continúan siendo coherentes en el próximo cierre.')
     scores=[]
     for key,label in (('technical_score','Técnico'),('trend_score','Trend'),('entry_score','Entry'),('risk_score','Riesgo')):
         if context.get(key) is not None: scores.append(f"{label} **{float(context[key]):.0f}/100**")
-    if scores: bits.append(' · '.join(scores))
-    if context.get('comment'): bits.append(_report_clip(context['comment'],300))
-    return '\n'.join(bits)
+    if scores:
+        bits.append('Los indicadores de calidad muestran '+', '.join(scores)+
+                    '. Deben leerse en conjunto: un Entry elevado no compensa una tendencia o un riesgo deteriorados.')
+    if context.get('comment'): bits.append('Observación del modelo: '+_report_clip(context['comment'],300))
+    return '\n\n'.join(bits)
 
 
 def _participation_reading(context):
     bits=[]
-    if context.get('rsi14') is not None: bits.append(f"RSI14 **{_fmt_number(context['rsi14'])}**")
-    if context.get('relative_volume') is not None: bits.append(f"Volumen relativo **{_fmt_number(context['relative_volume'],2,'x')}**")
+    if context.get('rsi14') is not None:
+        rsi=float(context['rsi14']); condition='equilibrado' if 40<=rsi<=60 else 'extendido' if rsi>70 else 'débil' if rsi<40 else 'con momentum'
+        bits.append(f"El RSI14 se ubica en **{_fmt_number(rsi)}**, una lectura {condition} que debe interpretarse dentro de la tendencia dominante.")
+    if context.get('relative_volume') is not None:
+        rv=float(context['relative_volume']); quality='superior a la media y aporta confirmación' if rv>=1.2 else 'cercana a la media' if rv>=.8 else 'inferior a la media y reduce la calidad de la señal'
+        bits.append(f"El volumen relativo es **{_fmt_number(rv,2,'x')}**: participación {quality}.")
     if context.get('relative_strength_63d_pct') is not None:
-        bits.append(f"Fuerza vs SPY 63d **{_fmt_number(context['relative_strength_63d_pct'],1,'%')}**")
+        rs=float(context['relative_strength_63d_pct']); relation='supera' if rs>0 else 'queda por detrás de'
+        bits.append(f"A 63 días, el activo {relation} SPY por **{_fmt_number(abs(rs),1,'%')}**, lo que permite distinguir movimiento propio de simple arrastre del mercado.")
     distances=[]
     for key,label in (('distance_ema62_pct','EMA62'),('distance_ema79_pct','EMA79'),('distance_sma200_pct','SMA200')):
         if context.get(key) is not None: distances.append(f"{label} {_fmt_number(context[key],1,'%')}")
-    if distances: bits.append('Distancias: '+ ' · '.join(distances))
-    if context.get('drawdown_pct') is not None: bits.append(f"Drawdown desde máximo: **{_fmt_number(context['drawdown_pct'],1,'%')}**")
-    return '\n'.join(bits)
+    if distances: bits.append('Respecto de sus referencias de tendencia, las distancias son '+ ', '.join(distances)+'. Una extensión excesiva eleva el riesgo de perseguir precio.')
+    if context.get('drawdown_pct') is not None: bits.append(f"El drawdown desde máximos es **{_fmt_number(context['drawdown_pct'],1,'%')}**, útil para dimensionar deterioro y recuperación pendiente.")
+    return '\n\n'.join(bits)
 
 
 def _risk_map(context):
     levels=[]
-    for key,label in (('entry_zone','Zona observada'),('invalidation','Invalidación técnica'),('target','Referencia técnica')):
-        if context.get(key): levels.append(f'{label}: **{_report_clip(context[key],80)}**')
-    if context.get('rr') is not None: levels.append(f"R/R estimado: **{float(context['rr']):.2f}:1**")
-    if context.get('risk'): levels.append(f"Riesgo técnico: **{_report_clip(context['risk'],35)}**")
-    if levels: levels.append('Los niveles son referencias del modelo, no una orden ni una recomendación personalizada.')
-    return '\n'.join(levels)
+    if context.get('entry_zone'): levels.append(f"La zona observada por el modelo es **{_report_clip(context['entry_zone'],80)}**.")
+    if context.get('invalidation'): levels.append(f"La invalidación técnica se encuentra en **{_report_clip(context['invalidation'],80)}**; alcanzarla obliga a revisar el supuesto que sostenía el setup.")
+    if context.get('target'): levels.append(f"La referencia técnica utilizada para evaluar recorrido es **{_report_clip(context['target'],80)}**.")
+    if context.get('rr') is not None: levels.append(f"Con esos niveles, el R/R estimado es **{float(context['rr']):.2f}:1**; cambia si se modifica entrada, invalidación o volatilidad.")
+    if context.get('risk'): levels.append(f"El riesgo técnico se clasifica como **{_report_clip(context['risk'],35)}**.")
+    if levels: levels.append('Estos niveles son referencias analíticas del modelo, no una orden ni una recomendación personalizada.')
+    return '\n\n'.join(levels)
 
 
 def _portfolio_market_reading(context):
     bits=[]
     if context.get('current_weight_pct') is not None:
-        bits.append(f"Posición actual: **{float(context['current_weight_pct']):.1f}%**")
-    else: bits.append('Posición actual: **no registrada en la cartera**')
+        bits.append(f"La posición representa **{float(context['current_weight_pct']):.1f}%** de la cartera; cualquier aumento debe evaluarse por su impacto marginal en concentración.")
+    else: bits.append('El activo **no está registrado en la cartera**, por lo que la alerta se analiza como oportunidad externa y no como gestión de una posición existente.')
     if context.get('sector'):
-        sector=f"Sector: **{_report_clip(context['sector'],55)}**"
-        if context.get('sector_weight_pct') is not None: sector+=f" · exposición **{float(context['sector_weight_pct']):.1f}%**"
+        sector=f"Pertenece al sector **{_report_clip(context['sector'],55)}**"
+        if context.get('sector_weight_pct') is not None: sector+=f", que ya representa **{float(context['sector_weight_pct']):.1f}%** de la cartera"
+        sector+='; esto permite detectar duplicación de riesgo antes de considerar una nueva exposición.'
         bits.append(sector)
-    if context.get('cash_pct') is not None: bits.append(f"Efectivo/no asignado: **{float(context['cash_pct']):.1f}%**")
+    if context.get('cash_pct') is not None: bits.append(f"El efectivo o capital no asignado es **{float(context['cash_pct']):.1f}%** y continúa siendo una alternativa válida si falta confirmación.")
     market=[]
     if context.get('market_regime'): market.append(_report_clip(context['market_regime'],45))
     if context.get('macro_score') is not None: market.append(f"Macro {float(context['macro_score']):.0f}/100")
     if context.get('vix') is not None: market.append(f"VIX {float(context['vix']):.1f}")
     if context.get('breadth') is not None: market.append(f"Breadth {float(context['breadth']):.0f}/100")
-    if market: bits.append('Mercado: **'+' · '.join(market)+'**')
+    if market: bits.append('El contexto de mercado combina **'+' · '.join(market)+'**; la señal individual debe ser consistente con ese régimen o justificar claramente por qué puede desacoplarse.')
     universe=[]
     if context.get('universe_source'): universe.append(_report_clip(context['universe_source'],45))
     if context.get('liquidity_tier'): universe.append('liquidez '+_report_clip(context['liquidity_tier'],25))
     if context.get('opportunity_score') is not None: universe.append(f"Opportunity {float(context['opportunity_score']):.0f}/100")
-    if universe: bits.append('Universo: '+' · '.join(universe))
-    return '\n'.join(bits)
+    if universe: bits.append('Dentro del universo analizado, el activo figura como '+', '.join(universe)+'. La clasificación ayuda a comparar liquidez y calidad con pares equivalentes.')
+    return '\n\n'.join(bits)
 
 
 def _alert_scenario(rule,context):

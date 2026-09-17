@@ -26,3 +26,12 @@ The system remains research-only, broker-free and in Shadow Mode.
 - CIO briefs compare themselves with the previous comparable run and highlight only material changes.
 - Investment Desk exposes workflow tasks, handoffs, packet identity and persistent thesis memory for human review.
 - Agent permissions and reporting lines are explicit; every role remains research-only, non-publishing and non-executing.
+
+## Evidence-backed agent playbooks
+
+- Added atomic `WHEN/THEN` playbook entries derived only from matured Shadow outcomes.
+- Every entry records hits, misses, sample size, unique tickers, confidence, evidence references and its primary validation horizon.
+- Playbooks use append/amend delta operations (`ADD`, `HIT`, `MISS`, `AMEND`, `PRUNE`) and forbid bulk rewrites.
+- Active entries provide narrative context only; they cannot alter signals, thresholds, theses, code, portfolio rules or execution.
+- CIO market, portfolio, opportunity and decision blocks now use analyst-style explanations instead of internal status strings.
+- Saved technical alerts explain trend, participation, relative strength, risk levels, portfolio fit, confirmation and invalidation in complete sentences.

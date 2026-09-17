@@ -312,8 +312,21 @@ else:
         st.success('Validated confidence adjustments were promoted within the 0.90–1.10 safety range.')
     else:
         st.caption('The current champion was retained; no challenger cleared every validation gate.')
+    playbooks=improvement.get('playbooks') or {}
+    playbook_entries=list((playbooks.get('entries') or {}).values())
+    if playbook_entries:
+        with st.expander('Agent Playbooks · learned Shadow evidence',expanded=False):
+            st.caption('Atomic WHEN/THEN entries. They are appended or amended, never bulk-rewritten, and cannot change signals or theses.')
+            columns=['entry_id','agent','signal_state','skill_version','when','then','confidence','status',
+                     'hits','misses','sample','unique_tickers','hit_rate_pct','evidence_summary']
+            frame=pd.DataFrame(playbook_entries)
+            st.dataframe(frame[[column for column in columns if column in frame]],width='stretch',hide_index=True)
+            operations=playbooks.get('delta_operations') or []
+            if operations:
+                st.caption('Latest delta operations')
+                st.dataframe(pd.DataFrame(operations),width='stretch',hide_index=True)
     st.caption(f"Latest persisted review: {improvement_record.get('created_at','N/D')}.")
-st.caption('Only confidence calibration can change automatically. Signal direction, thresholds, code, providers and execution require a reviewed release. GitHub Agent proposals never merge themselves.')
+st.caption('Only confidence calibration can change automatically. Playbooks add narrative context only; signal direction, thresholds, code, providers and execution require a reviewed release. GitHub Agent proposals never merge themselves.')
 
 signal_daily_record=load_latest_signal_lab_report(uid)
 signal_weekly_record=load_latest_signal_lab_review(uid)

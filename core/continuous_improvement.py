@@ -15,6 +15,8 @@ from core.alerts_engine import send_webhook
 from core.desk_store import load_desk_output, load_latest_desk_output, save_desk_output
 from core.notification_settings import get_user_webhook
 from core.skill_calibration import PRIMARY_HORIZON_BY_AGENT
+from core.agent_playbooks import (build_agent_playbooks, guidance_for_result,
+                                  save_agent_playbooks)
 
 
 POLICY_VERSION = '1.0'
@@ -120,7 +122,8 @@ def _mean(values):
     return None if not clean else sum(clean) / len(clean)
 
 
-def build_continuous_improvement_review(decisions, outcomes, active_policy=None, generated_at=None):
+def build_continuous_improvement_review(decisions, outcomes, active_policy=None, generated_at=None,
+                                        active_playbooks=None):
     """Build a deterministic champion/challenger review and its next safe policy."""
     generated = _now(generated_at)
     decision_map = {str(row.get('decision_key') or ''): row for row in decisions or [] if row.get('decision_key')}
@@ -237,12 +240,15 @@ def build_continuous_improvement_review(decisions, outcomes, active_policy=None,
         status = 'NOT_ENOUGH_DATA'
     else:
         status = 'NO_MATURED_EVIDENCE'
-    return {
+    next_playbooks = build_agent_playbooks(decisions, outcomes, previous=active_playbooks,
+                                           generated_at=generated)
+    embed = {
         'status': status, 'generated_at': generated, 'policy_version': POLICY_VERSION,
         'matured_primary_outcomes': sum(len(rows) for rows in groups.values()),
         'segments_reviewed': len(candidates), 'eligible_segments': len(eligible),
         'automatic_promotions': len(promotions), 'promotions': promotions,
         'candidates': candidates, 'next_policy': next_policy,
+        'playbooks': next_playbooks,
         'structural_code_changes': 'HUMAN_REVIEW_REQUIRED',
         'github_agent_ready': True,
         'policy': {
@@ -263,32 +269,45 @@ def apply_improvement_policy(result, policy):
         return result
     key = _segment_key(getattr(result, 'agent', ''), getattr(result, 'state', ''),
                        getattr(result, 'skill_version', ''))
-    entry = (_policy_payload(policy).get('entries') or {}).get(key)
-    if not entry:
-        return result
-    multiplier = _clamp(_finite(entry.get('confidence_multiplier')) or 1.0)
+    policy_payload = _policy_payload(policy)
+    entry = (policy_payload.get('entries') or {}).get(key)
+    multiplier = _clamp(_finite((entry or {}).get('confidence_multiplier')) or 1.0)
     original = min(1.0, max(0.0, float(getattr(result, 'confidence', 0) or 0)))
-    calibrated = min(.99, max(0.0, original * multiplier))
-    result.confidence = round(calibrated, 4)
+    calibrated = min(.99, max(0.0, original * multiplier)) if entry else original
+    if entry:
+        result.confidence = round(calibrated, 4)
     result.metadata = dict(getattr(result, 'metadata', {}) or {})
-    result.metadata['continuous_improvement'] = {
-        'policy_version': POLICY_VERSION, 'segment_key': key,
-        'original_confidence': round(original, 4),
-        'confidence_multiplier': round(multiplier, 4),
-        'calibrated_confidence': round(calibrated, 4),
-        'scope': 'confidence_only', 'shadow_mode': True,
-    }
+    if entry:
+        result.metadata['continuous_improvement'] = {
+            'policy_version': POLICY_VERSION, 'segment_key': key,
+            'original_confidence': round(original, 4),
+            'confidence_multiplier': round(multiplier, 4),
+            'calibrated_confidence': round(calibrated, 4),
+            'scope': 'confidence_only', 'shadow_mode': True,
+        }
+    playbook = guidance_for_result(result, policy_payload.get('playbooks') or {})
+    if playbook:
+        result.metadata['playbook_guidance'] = {
+            key: playbook.get(key) for key in (
+                'entry_id', 'when', 'then', 'confidence', 'hits', 'misses',
+                'sample', 'evidence_summary', 'automatic_effect')
+        }
     return result
 
 
 def save_improvement_review(user_id, review_key, report):
+    next_playbooks = report.get('playbooks') or {}
+    report['next_policy']['playbooks'] = next_playbooks
     review = save_desk_output(user_id, 'continuous_improvement_review', report, run_key=review_key)
     policy = save_desk_output(user_id, 'continuous_improvement_policy', report['next_policy'], run_key='active')
-    return {'status': 'CURRENT', 'review': review, 'policy': policy}
+    playbooks = save_agent_playbooks(user_id, next_playbooks)
+    return {'status': 'CURRENT', 'review': review, 'policy': policy, 'playbooks': playbooks}
 
 
 def build_discord_improvement_embed(report):
     promotions = report.get('promotions') or []
+    playbooks = report.get('playbooks') or {}
+    playbook_counts = playbooks.get('counts') or {}
     fields = [{
         'name': '📐 Límites automáticos',
         'value': 'Solo confianza por agente/estado/versión · rango 0,90–1,10 · validación cronológica separada.',
@@ -303,10 +322,15 @@ def build_discord_improvement_embed(report):
         })
     if not promotions:
         fields.append({'name': '🏆 Resultado', 'value': 'El modelo actual se mantuvo: ningún candidato superó todos los controles.', 'inline': False})
+    fields.append({'name': '📚 Playbooks de agentes',
+                   'value': (f"Reglas activas: **{playbook_counts.get('ACTIVE', 0)}** · propuestas: "
+                             f"**{playbook_counts.get('PROPOSED', 0)}** · podadas: "
+                             f"**{playbook_counts.get('PRUNED', 0)}**. Solo aportan contexto narrativo."),
+                   'inline': False})
     fields.append({'name': '🔒 Gobernanza',
                    'value': 'Cambios estructurales de código requieren pull request y aprobación humana. Ninguna orden fue enviada.',
                    'inline': False})
-    return {
+    embed = {
         'author': {'name': 'Market Screener Pro · Continuous Improvement'},
         'title': '🧪 Revisión semanal de mejora continua',
         'description': (f"Estado: **{report.get('status')}** · segmentos elegibles: "
@@ -315,6 +339,7 @@ def build_discord_improvement_embed(report):
         'fields': fields[:25], 'timestamp': report.get('generated_at') or _now(),
         'footer': {'text': 'SHADOW MODE · Calibración acotada · Sin cambios autónomos de código ni operaciones'},
     }
+    return embed
 
 
 def notify_improvement_review(user_id, report, review_key, send_fn=send_webhook):
