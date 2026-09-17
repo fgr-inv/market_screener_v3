@@ -64,8 +64,11 @@ def test_cio_alert_translates_internal_codes_into_professional_explanation():
     assert 'STAGFLATION RISK' not in fields['🌎 Régimen de mercado']
     assert 'riesgo de estanflación' in fields['🌎 Régimen de mercado'].lower()
     assert 'impacto marginal' in fields['🛡️ Riesgo principal']
-    assert 'encabeza la preselección' in fields['🎯 Oportunidades verificadas']
+    assert 'combinación técnica que merece seguimiento' in fields['🎯 Oportunidades verificadas']
     assert 'no constituye una señal automática' in fields['🎯 Oportunidades verificadas']
+    daily=fields['🧠 Análisis profesional de la jornada']
+    assert 'Lectura central' in daily and 'Rotación y amplitud' in daily
+    assert 'Implicación para la cartera' in daily
 
 
 def test_saved_alert_explains_technical_evidence_in_sentences():

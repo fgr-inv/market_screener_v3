@@ -35,3 +35,5 @@ The system remains research-only, broker-free and in Shadow Mode.
 - Active entries provide narrative context only; they cannot alter signals, thresholds, theses, code, portfolio rules or execution.
 - CIO market, portfolio, opportunity and decision blocks now use analyst-style explanations instead of internal status strings.
 - Saved technical alerts explain trend, participation, relative strength, risk levels, portfolio fit, confirmation and invalidation in complete sentences.
+- Daily CIO reports now include a deeper session analysis covering regime, rotation/breadth and portfolio implications.
+- Opportunity cards are intentionally shorter, but explain the setup phase and required confirmation instead of reducing every idea to a generic “breakout” label.

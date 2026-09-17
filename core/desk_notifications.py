@@ -122,19 +122,69 @@ def _opportunity_text(rows):
             except Exception: pass
         try: details.append(f"R/R {float(row.get('RR')):.2f}")
         except Exception: pass
-        context=', '.join(part for part in (sector,cap,phase,source) if part)
-        quantitative='; '.join(details)
-        narrative=(
-            f'**{ticker}** encabeza la preselección con prioridad **{score_text}**. '
-            f'El análisis técnico la clasifica como **{technical}** y el fundamental como '
-            f'**{fundamental}**. '
-        )
-        narrative+=(f'Pertenece a {context}. ' if context else '')
-        narrative+=(f'La evidencia cuantitativa disponible es {quantitative}. ' if quantitative else '')
-        narrative+=('Debe confirmarse que la zona de entrada, la tesis y el riesgo de cartera continúen alineados; '
-                    'la inclusión en la lista no constituye una señal automática.')
+        phase_key=str(row.get('Trend Phase') or '').upper()
+        phase_reading={
+            'BASE_NEAR_BREAKOUT':'está construyendo una base cerca de resistencia, todavía sin confirmación definitiva',
+            'EARLY_ACCELERATION':'muestra aceleración temprana de tendencia, antes de convertirse en un movimiento extendido',
+            'BREAKOUT_CONFIRMED':'superó una resistencia con confirmación del modelo, pero debe demostrar continuidad y participación',
+            'ESTABLISHED_LEADER':'mantiene una tendencia líder ya establecida; el riesgo principal es perseguir un precio extendido',
+        }.get(phase_key,'presenta una combinación técnica que merece seguimiento, no una señal aislada de breakout')
+        quantitative=', '.join(details[:4])
+        narrative=(f'**{ticker}** · prioridad **{score_text}**. {phase_reading.capitalize()}. '
+                   f'Técnico: **{technical}**; fundamental: **{fundamental}**')
+        if quantitative: narrative+=f'; {quantitative}'
+        narrative+=('. Revisar zona, participación e invalidación antes de elevar convicción; '
+                    'la preselección no constituye una señal automática.')
         lines.append(narrative)
     return '\n\n'.join(lines)
+
+
+def _daily_session_analysis(brief):
+    """Develop the daily desk view while keeping the opportunity list compact."""
+    market=brief.get('market_regime') or {}; risk=brief.get('principal_risk') or {}
+    market_context=market.get('professional_context') or {}
+    risk_context=risk.get('professional_context') or {}
+    state=str(market.get('state') or 'NOT_CHECKED').upper()
+    regime=str(market_context.get('economic_regime') or '').upper()
+    momentum=str(market_context.get('momentum') or '').upper()
+    leaders=market_context.get('leaders') or []; laggards=market_context.get('laggards') or []
+    paragraphs=[]
+    opening=(f'**Lectura central.** El mercado opera con un régimen **{_state(state).lower()}**')
+    if regime: opening+=f' y un trasfondo de **{_state(regime).lower()}**'
+    if momentum:
+        momentum_label={'DETERIORATING':'deteriorándose','IMPROVING':'mejorando',
+                        'POSITIVE':'positivo','NEGATIVE':'negativo','NEUTRAL':'neutral'}.get(
+                            momentum,momentum.replace('_',' ').lower())
+        opening+=f', mientras el momentum aparece **{momentum_label}**'
+    opening+='.'
+    if state in {'RISK_OFF','HIGH_RISK'} or momentum in {'DETERIORATING','NEGATIVE'}:
+        opening+=(' Esto favorece selectividad, menor tolerancia a señales incompletas y prioridad por preservar capital; '
+                  'una suba aislada no equivale a mejora amplia del mercado.')
+    elif state=='RISK_ON' and momentum not in {'DETERIORATING','NEGATIVE'}:
+        opening+=(' El entorno permite asumir algo más de riesgo, pero solo cuando precio, participación, fundamentales '
+                  'y cartera confirman la misma lectura.')
+    else:
+        opening+=(' La señal agregada no justifica una postura extrema: conviene distinguir liderazgo genuino de rebotes '
+                  'concentrados y esperar confirmaciones independientes.')
+    paragraphs.append(opening)
+
+    rotation='**Rotación y amplitud.** '
+    if leaders: rotation+='El liderazgo se concentra en '+', '.join(_clip(item,30) for item in leaders[:3])+'. '
+    else: rotation+='No hay liderazgo sectorial suficientemente claro. '
+    if laggards: rotation+='Quedan rezagados '+', '.join(_clip(item,30) for item in laggards[:3])+'. '
+    rotation+=('La lectura mejora si el avance se amplía hacia más sectores y empeora si la rentabilidad depende '
+               'de pocos nombres mientras aumenta la volatilidad.')
+    paragraphs.append(rotation)
+
+    positions=risk_context.get('largest_positions') or []; sectors=risk_context.get('largest_sectors') or []
+    portfolio=f'**Implicación para la cartera.** El riesgo agregado es **{_state(risk.get("state")).lower()}**. '
+    if positions: portfolio+='Las posiciones de mayor impacto son '+', '.join(f'{ticker} {float(weight):.1%}' for ticker,weight in positions[:3])+'. '
+    if sectors: portfolio+='La exposición sectorial dominante es '+', '.join(f'{sector} {float(weight):.1%}' for sector,weight in sectors[:2])+'. '
+    portfolio+=('Las oportunidades nuevas deben aportar diversificación o una mejora clara de calidad; si solamente '
+                'replican el riesgo existente, un score alto no alcanza para justificar mayor convicción.')
+    paragraphs.append(portfolio)
+
+    return '\n\n'.join(paragraphs)
 
 
 def _decision_text(rows):
@@ -340,6 +390,7 @@ def build_discord_cio_embed(brief,report_type='material'):
             fields.append(_field('🛡️ Riesgo principal',risk_value))
         opportunities=_opportunity_text(brief.get('top_opportunities'))
         if opportunities: fields.append(_field('🎯 Oportunidades verificadas',opportunities))
+        fields.append(_field('🧠 Análisis profesional de la jornada',_daily_session_analysis(brief)))
     for index,event in enumerate(events[:3]): fields.append(_event_field(event,index))
     professional=_professional_analysis_text(brief)
     if professional: fields.append(_field('🔎 Lectura profesional',professional))
