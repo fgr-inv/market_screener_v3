@@ -145,7 +145,7 @@ def _decision_text(rows):
         verification=VERIFICATION_LABELS.get(verification,verification.replace('_',' ').title())
         summary=_clip(row.get('summary'),220)
         sentence=(f'**{subject}** requiere revisión porque el desk observa **{state.lower()}**, con confianza '
-                  f'**{_pct(row.get("confidence"))}** y verificación: **{verification}**.')
+                  f'**{_pct(row.get("confidence"))}** y verificación: {verification}.')
         if summary: sentence+=f' {summary}'
         sentence+=' Antes de modificar la convicción deben revisarse la evidencia contraria y la condición de invalidación.'
         lines.append(sentence)
@@ -211,7 +211,7 @@ def _portfolio_detail(risk):
         lines.append(f'Las mayores posiciones son {concentration}; estos pesos determinan dónde un error de tesis tendría mayor impacto.')
     if sectors:
         concentration=', '.join(f'{sector} {float(weight):.1%}' for sector,weight in sectors[:3])
-        lines.append(f'La exposición sectorial se concentra en {concentration}. Conviene evaluar las nuevas ideas por su aporte marginal al riesgo, no solo por su calidad individual.')
+        lines.append(f'La exposición sectorial se concentra en {concentration}. Conviene evaluar las nuevas ideas por su impacto marginal sobre el riesgo, no solo por su calidad individual.')
     if context.get('cash_pct') is not None:
         lines.append(f"El efectivo o capital no asignado representa {float(context['cash_pct']):.1f}% y sigue siendo una posición válida si no aparece evidencia suficientemente alineada.")
     return '\n\n'.join(lines)

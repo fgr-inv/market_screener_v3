@@ -261,6 +261,7 @@ def build_continuous_improvement_review(decisions, outcomes, active_policy=None,
         },
         'shadow_mode': True, 'no_execution': True,
     }
+    return embed
 
 
 def apply_improvement_policy(result, policy):
