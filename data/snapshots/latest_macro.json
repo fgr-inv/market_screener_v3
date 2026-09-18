@@ -4,18 +4,18 @@
   "Rates": 38,
   "Liquidity": 50,
   "Growth": 62,
-  "Inflation_Pressure": 80,
-  "Breadth": 37,
-  "VIX": 15.4399995803833,
-  "Copper_Gold_20d": 0.05911605259017061,
-  "Oil_20d": 0.17989041690111307,
-  "US10Y_20d": 0.0631850755396981,
-  "US10Y_20d_bps": 29.400014877319336,
-  "Dollar_20d": 0.017934003409283195,
-  "HYG_IEF_20d": 0.012533348470687322,
+  "Inflation_Pressure": 70,
+  "Breadth": 35,
+  "VIX": 14.8100004196167,
+  "Copper_Gold_20d": 0.07606243806588564,
+  "Oil_20d": 0.0869862146233853,
+  "US10Y_20d": 0.06431005949700985,
+  "US10Y_20d_bps": 30.20000457763672,
+  "Dollar_20d": 0.01719812056110892,
+  "HYG_IEF_20d": 0.01287062289948615,
   "Macro_Score": 48,
-  "Macro_Score_20d_Ago": 55,
-  "Macro_Delta_20d": -8,
+  "Macro_Score_20d_Ago": 54,
+  "Macro_Delta_20d": -7,
   "Risk_Regime": "NEUTRAL",
   "Economic_Regime": "REFLATION",
   "Momentum": "DETERIORATING",
@@ -29,8 +29,8 @@
   "Core_PCE_YoY": 3.3441430040338282,
   "CPI_YoY": 3.7129581058388483,
   "PCE_YoY": 3.7011657214870874,
-  "Industrial_Production_YoY": 1.0794551200266955,
-  "Manufacturing_Production_YoY": 1.2692045318973388,
+  "Industrial_Production_YoY": 1.4204223973108832,
+  "Manufacturing_Production_YoY": 1.0321765017739848,
   "Retail_Sales_YoY": 6.014763635267806,
   "Housing_Starts_YoY": -1.2393493415956636,
   "Unemployment": 4.1,
@@ -38,7 +38,7 @@
   "Payroll_3m_Avg_Change": 71.33333333333333,
   "Fed_Funds": 3.63,
   "Fed_Funds_6m_Change": -0.010000000000000231,
-  "10Y_2Y": 0.27,
+  "10Y_2Y": 0.25,
   "10Y_Breakeven": 2.33,
   "NFCI": -0.56,
   "ISM_PMI": null,
@@ -97,14 +97,14 @@
       "series_id": "INDPRO",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Manufacturing Production": {
       "series_id": "IPMAN",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-07-01 00:00:00",
+      "latest_date": "2026-08-01 00:00:00",
       "error": null
     },
     "Retail Sales": {
@@ -125,14 +125,14 @@
       "series_id": "T10Y2Y",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-17 00:00:00",
+      "latest_date": "2026-09-18 00:00:00",
       "error": null
     },
     "10Y Breakeven": {
       "series_id": "T10YIE",
       "source": "FRED API",
       "status": "LIVE",
-      "latest_date": "2026-09-17 00:00:00",
+      "latest_date": "2026-09-18 00:00:00",
       "error": null
     },
     "Financial Conditions": {
@@ -186,23 +186,23 @@
     },
     {
       "Indicator": "Industrial Production YoY",
-      "Value": 1.0794551200266955,
-      "Previous": 1.2892386071926554,
-      "Trend": "↓",
+      "Value": 1.4204223973108832,
+      "Previous": 1.1299978408934708,
+      "Trend": "↑",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Manufacturing Production YoY",
-      "Value": 1.2692045318973388,
-      "Previous": 1.6120205699153622,
+      "Value": 1.0321765017739848,
+      "Previous": 1.352003124321266,
       "Trend": "↓",
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-07-01 00:00:00"
+      "Updated": "2026-08-01 00:00:00"
     },
     {
       "Indicator": "Retail Sales YoY",
@@ -276,13 +276,13 @@
     },
     {
       "Indicator": "10Y-2Y",
-      "Value": 0.27,
+      "Value": 0.25,
       "Previous": 0.27,
-      "Trend": "→",
+      "Trend": "↓",
       "Unit": "pp",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-17 00:00:00"
+      "Updated": "2026-09-18 00:00:00"
     },
     {
       "Indicator": "10Y Breakeven",
@@ -292,7 +292,7 @@
       "Unit": "%",
       "Source": "FRED API",
       "Status": "LIVE",
-      "Updated": "2026-09-17 00:00:00"
+      "Updated": "2026-09-18 00:00:00"
     },
     {
       "Indicator": "NFCI",
