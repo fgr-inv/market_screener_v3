@@ -11,6 +11,7 @@ user=current_user(); uid=user['user_id']
 
 st.subheader('CSV import')
 st.caption('Columnas requeridas: ticker/symbol y quantity/qty. El costo promedio es opcional.')
+st.caption('Si el mismo ticker aparece en dos brokers dentro del CSV, se suman las cantidades y se calcula el costo promedio ponderado.')
 uploaded=st.file_uploader('Portfolio positions CSV',type=['csv'])
 if uploaded is not None:
     try:
