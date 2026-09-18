@@ -2,11 +2,11 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-from core.market_data import download_prices, classify_symbol
+from core.market_data import download_prices, classify_symbol, get_live_price
 from core.indicators import enrich_indicators
 from core.asset_models import analyze_asset
 from core.storage import load_positions, load_theses, upsert_position, upsert_thesis, delete_thesis
-from core.portfolio_positions import resolve_position_allocations
+from core.portfolio_positions import resolve_position_allocations, apply_live_prices, portfolio_weight_alerts
 from core.portfolio_metadata import infer_position_sectors, sector_is_missing
 from core.access_control import current_user
 from core.ui import hero, section_note, safe_error
@@ -22,8 +22,20 @@ with positions_tab:
         st.info('No hay posiciones guardadas. Agregalas desde Portfolio Risk o Portfolio Import.')
     else:
         ticks=pos['ticker'].astype(str).str.upper().tolist()
+        refresh_col,settings_col=st.columns([1,3])
+        force_refresh=refresh_col.button('Actualizar precios',type='primary',help='Solicita cotizaciones actuales; la caché compartida evita llamadas duplicadas.')
+        auto_refresh=settings_col.toggle('Actualizar automáticamente cada 5 minutos',value=False,
+                                         help='Mientras esta página permanezca abierta, vuelve a calcular precios, valores y pesos.')
+        if force_refresh:
+            get_live_price.clear()
         pm=download_prices(ticks,period='1y')
         out,allocation=resolve_position_allocations(pos,pm)
+        live_prices={ticker:get_live_price(ticker) for ticker in ticks}
+        out=apply_live_prices(out,live_prices)
+        st.caption('Cotizaciones compartidas con caché de 5 minutos. Los pesos por cantidad cambian con el precio; los porcentajes declarados permanecen fijos.')
+        if auto_refresh:
+            st.info('Actualización automática activa. La vista recalcula los datos cada 5 minutos mientras permanezca abierta.')
+            st.markdown('<meta http-equiv="refresh" content="300">',unsafe_allow_html=True)
         if not out.empty:
             out['Unrealized P&L $']=out.apply(lambda row:(row['Market Value']-row['Quantity']*row['Avg Cost']) if pd.notna(row['Market Value']) and row['Avg Cost']>0 else None,axis=1)
             out['Unrealized P&L %']=out.apply(lambda row:(row['Price']/row['Avg Cost']-1)*100 if pd.notna(row['Price']) and row['Avg Cost']>0 else None,axis=1)
@@ -51,7 +63,8 @@ with positions_tab:
             c1,c2,c3,c4=st.columns(4)
             coverage_note=None
             if allocation['basis']=='QUANTITY':
-                total=float(allocation['dollar_total'])
+                # Use the live-price overlay, not the older historical-bar total.
+                total=float(pd.to_numeric(out['Market Value'],errors='coerce').fillna(0).sum())
                 covered=(out['Quantity']>0)&(out['Avg Cost']>0)&out['Market Value'].notna()
                 covered_value=float(out.loc[covered,'Market Value'].sum())
                 invested=float((out.loc[covered,'Quantity']*out.loc[covered,'Avg Cost']).sum())
@@ -76,8 +89,16 @@ with positions_tab:
             c4.metric('Positions',len(out))
             if coverage_note: st.caption(coverage_note)
             st.dataframe(out.sort_values('Weight %',ascending=False),width='stretch',hide_index=True)
+            alerts=portfolio_weight_alerts(
+                out,position_limit_pct=10,sector_limit_pct=30,
+                target_groups=[{'name':'Exposición Bitcoin (IBIT + MSTR)','tickers':['IBIT','MSTR'],'target_pct':20}],
+            )
+            if alerts:
+                st.subheader('Control de pesos')
+                for alert in alerts:
+                    (st.warning if alert['level']=='warning' else st.info)(alert['message'])
             if allocation['basis']=='QUANTITY':
-                st.caption('Podés conservar cantidades o guardar estos pesos actuales como porcentajes para que el análisis no dependa del capital total.')
+                st.caption('Recomendado para seguimiento dinámico: conservar cantidades. Si guardás porcentajes, los pesos dejan de variar con las cotizaciones.')
                 if st.button('Convertir pesos actuales a porcentajes'):
                     for _,row in out.iterrows():
                         saved=pos[pos['ticker'].astype(str).str.upper()==str(row['Ticker']).upper()].iloc[0]
